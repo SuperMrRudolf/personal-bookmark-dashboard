@@ -86,7 +86,7 @@ src/
 - extend the lock/unlock behavior to editing and drag interactions
 - Build quick-save popup and keyboard command
 - Implement JSON export/import with replace-all behavior
-- Wire persistence through `chrome.storage.local`
+- Wire bookmark/group persistence through `chrome.storage.local`
 - expand the README further once feature-level setup and usage details exist
 
 ## Notes

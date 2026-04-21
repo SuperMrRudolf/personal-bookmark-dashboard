@@ -47,9 +47,9 @@ Lock the MVP decisions and set up the development environment so implementation 
 - create GitHub repo
 - set up WSL-based development in VS Code
 - create project memory files:
-  - `project-notes/BUILD_CHECKPOINT.md`
-  - `project-notes/CODEX_PROMPTS.md`
-  - `project-notes/MVP_BUILD_PHASES.md`
+  - `dev-notes/BUILD_CHECKPOINT.md`
+  - `dev-notes/MVP_BUILD_PHASES.md`
+  - `dev-notes/PRD.md`
 
 ### Done When
 - repo exists locally and on GitHub
@@ -93,7 +93,6 @@ Create the persistent local data model for groups, bookmarks, and settings.
   - settings
   - groups
   - bookmarks
-  - full export/import payload
 - create storage wrapper around `chrome.storage.local`
 - create bootstrap logic for default data
 - ensure default `Ungrouped` group exists
@@ -260,8 +259,8 @@ Support fast capture of the current page from anywhere in Chrome.
 ### Tasks
 - add background/service worker command handling
 - define keyboard shortcut command in manifest
-- attempt desired shortcut behavior
-- allow fallback if `Ctrl+B` conflicts with Chrome/browser rules
+- use a safe default shortcut only if Chrome allows it
+- allow the shortcut to be changed by the user in `chrome://extensions/shortcuts`
 - open quick-save popup when command is triggered
 - prefill:
   - current page title
@@ -275,7 +274,7 @@ Support fast capture of the current page from anywhere in Chrome.
 - shortcut triggers quick-save flow
 - current page title and URL are prefilled
 - bookmark saves correctly to selected group
-- fallback path exists if `Ctrl+B` is unavailable
+- the shortcut can be remapped safely if the default is unavailable or conflicts
 
 ---
 
@@ -326,12 +325,11 @@ Improve quality, feel, and stability so the extension feels finished.
 
 ---
 
-## Notes for Future Sessions
+## Implementation Note
 
-When continuing this project in a new chat, provide:
-- this file
-- `BUILD_CHECKPOINT.md`
-- the current repo state
-- the current error or next task
+Keep the official phase order as-is, but treat **Phase 3 - Core Dashboard UI** and **Phase 4 - Add, Edit, and Delete Flows** as one practical implementation stream during development.
 
-That will make it easy to continue without depending on one huge chat thread.
+Reasoning:
+- once the real storage layer exists, the fastest path is usually to build the real UI and basic CRUD together
+- search and tag filtering should still come before drag-and-drop because they are core to the product and lower risk to implement
+- quick-save should remain later because it depends on stable storage and editing flows

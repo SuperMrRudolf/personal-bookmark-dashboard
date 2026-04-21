@@ -226,7 +226,7 @@ Each bookmark must have:
 - URL
 - group ID
 - tags array
-- favicon reference
+- optional favicon/cache reference or derived display source
 - created timestamp
 - updated timestamp
 - order within its group
@@ -308,12 +308,12 @@ Minimum v1 behavior:
 The extension must support a keyboard command for quick-save.
 
 Desired shortcut:
-- **Ctrl+B**
+- a **user-configurable keyboard command**
 
 Important constraint:
-- Chrome or the OS may block or override this shortcut
-- therefore v1 must treat **Ctrl+B as preferred, but not guaranteed**
-- the implementation should allow an alternative command if needed
+- Chrome or the OS may block or override some shortcuts
+- therefore v1 must not depend on any one specific default shortcut
+- the implementation should allow the user to remap the command in `chrome://extensions/shortcuts`
 
 Quick-save behavior:
 1. User triggers the command while viewing any page.
@@ -535,13 +535,13 @@ No cloud sync in v1.
       "url": "https://example.com",
       "groupId": "group_ungrouped",
       "tags": ["tools", "docs"],
-      "favicon": "https://example.com/favicon.ico",
       "order": 0,
       "createdAt": "2026-01-01T00:00:00.000Z",
       "updatedAt": "2026-01-01T00:00:00.000Z"
     }
   ]
 }
+```
 
 ---
 
@@ -551,6 +551,10 @@ Preferred favicon strategy:
 1. browser-provided favicon resolution if available  
 2. direct site favicon path  
 3. fallback generic icon  
+
+For v1:
+- favicon display data should be treated as optional or derived  
+- bookmarks should not depend on a stored favicon value to remain valid  
 
 ---
 
@@ -609,12 +613,11 @@ The system must:
 ## 11. Edge Cases and Constraints
 
 ### 11.1 Shortcut Limitations
-`Ctrl+B` may conflict with browser or OS bindings.
+Some shortcut choices may conflict with browser or OS bindings.
 
 Requirement:
-- try to support it  
-- do not assume it is guaranteed  
-- allow alternate mapping if needed  
+- do not assume any single default shortcut is guaranteed  
+- allow user remapping when needed  
 
 ### 11.2 Hidden-But-Stable Filtering
 Filtered bookmarks must become invisible and non-interactive **without collapsing layout**.
@@ -682,7 +685,6 @@ Recommended v1 behavior:
 - storage wrapper  
 - default bootstrap data  
 - persistence  
-- import/export JSON  
 
 ### Phase 3 — Dashboard UI
 - group cards  
@@ -697,25 +699,31 @@ Recommended v1 behavior:
 - add bookmark UI  
 - rename/delete group flow  
 
-### Phase 5 — Stable Search and Tag Filtering
+### Phase 5 — Import and Export Backup
+- export JSON  
+- import JSON  
+- replace-all validation  
+- confirmation and error handling  
+
+### Phase 6 — Stable Search and Tag Filtering
 - live text search  
 - tag list filter  
 - invisible/non-interactive hidden bookmarks  
 - no collapsing layout  
 
-### Phase 6 — Drag-and-Drop and Lock Mode
+### Phase 7 — Drag-and-Drop and Lock Mode
 - reorder groups  
 - reorder bookmarks  
 - move bookmarks between groups  
 - persistent locked/unlocked state  
 
-### Phase 7 — Quick Save Command
+### Phase 8 — Quick Save Command
 - keyboard command  
 - current tab metadata  
 - quick-save popup  
 - save flow  
 
-### Phase 8 — Polish
+### Phase 9 — Polish
 - visual refinement  
 - empty states  
 - fallback favicon behavior  
