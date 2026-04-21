@@ -18,3 +18,7 @@ In development (v1)
 - TypeScript
 - Vite
 - Chrome Extension (Manifest V3)
+
+## Links
+- Website: https://designlabs.co.za/
+- Author: Rudolf Dutoit Enever

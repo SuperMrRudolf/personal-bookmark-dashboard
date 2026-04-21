@@ -8,6 +8,7 @@ Phase 1 - Project scaffolding and extension shell
 - v1 product decisions are locked
 - stack plan is chosen
 - working environment notes are captured
+- open-source starter files are added
 
 ## Exact stack decisions
 - Chrome extension, Manifest V3
@@ -36,14 +37,19 @@ Phase 1 - Project scaffolding and extension shell
 
 ## Folder structure
 ```text
-project-notes/
+dev-notes/
   BUILD_CHECKPOINT.md
   MVP_BUILD_PHASES.md
   PRD.md
+
+LICENSE
+README.md
 ```
 
 ## What Codex generated
-- This checkpoint file at `project-notes/BUILD_CHECKPOINT.md`
+- This checkpoint file at `dev-notes/BUILD_CHECKPOINT.md`
+- Root `README.md`
+- Root `LICENSE`
 
 ## What still needs doing
 - Scaffold the Chrome extension project
@@ -58,6 +64,7 @@ project-notes/
 - Build quick-save popup and keyboard command
 - Implement JSON export/import with replace-all behavior
 - Wire persistence through `chrome.storage.local`
+- replace the starter README with setup, install, and usage docs once the extension scaffold exists
 
 ## Notes
 - Working inside WSL Ubuntu
