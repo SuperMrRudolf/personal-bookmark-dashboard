@@ -2,7 +2,7 @@
 
 A Chrome extension that replaces the New Tab page with a clean, dark, grouped bookmark dashboard inspired by LumiList.
 
-## Features (planned)
+## Features
 - Grouped bookmarks
 - Drag & drop organization
 - Lock/unlock layout
@@ -11,13 +11,26 @@ A Chrome extension that replaces the New Tab page with a clean, dark, grouped bo
 - JSON backup/restore
 
 ## Status
-In development (v1)
+Scaffolded and in active development (v1)
 
 ## Tech
 - React
 - TypeScript
 - Vite
 - Chrome Extension (Manifest V3)
+- CRXJS Vite Plugin
+
+## Getting Started
+```bash
+npm install
+npm run dev
+```
+
+Then load the unpacked extension from the generated dev output in Chrome while developing, or build a production bundle with:
+
+```bash
+npm run build
+```
 
 ## Links
 - Website: https://designlabs.co.za/
