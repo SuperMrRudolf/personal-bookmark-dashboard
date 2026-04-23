@@ -42,6 +42,15 @@ Phase 2 - Data model and storage layer in progress
 - bookmark drag-and-drop reorder within the same group uses sortable drag behavior while unlocked
 - bookmark drag-and-drop move between groups uses sortable drag behavior while unlocked
 - group drag-and-drop is disabled while locked
+- export JSON backup is wired from the dashboard
+- import JSON backup is wired from the dashboard with replace-all confirmation
+- backup import creates missing groups from bookmark group names
+- backup import uses/creates `Imported` only when a bookmark has no group info
+- backup import preserves tags and ordering
+- manifest command for quick-save is wired
+- background worker captures the current tab for quick-save
+- quick-save opens the dashboard with a prefilled bookmark form
+- quick-save requires group selection before saving
 - production build is verified
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
@@ -106,13 +115,6 @@ src/
 
 ## What still needs doing
 - refine the LumiList-inspired visual design
-- Add drag-and-drop for bookmarks within and across groups
-- apply lock/unlock only to drag-and-drop/reorder interactions
-- Build quick-save popup and keyboard command
-- Implement JSON export/import with replace-all behavior
-- Import behavior should create groups from imported group names
-- Import behavior should use/create `Imported` only when a bookmark has no group information
-- Import behavior should preserve existing and new free-form tags
 - review dependency audit warning before release: `npm audit` currently reports high-severity Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`; do not use `npm audit fix --force` casually because npm marks the available fix as a breaking CRXJS change
 - expand the README further once feature-level setup and usage details exist
 

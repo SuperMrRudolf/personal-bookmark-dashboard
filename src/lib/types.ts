@@ -28,3 +28,9 @@ export type DashboardData = {
   groups: BookmarkGroup[]
   bookmarks: Bookmark[]
 }
+
+export type QuickSaveDraft = {
+  name: string
+  url: string
+  capturedAt: string
+}

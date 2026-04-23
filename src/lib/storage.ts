@@ -1,7 +1,8 @@
-import type { Bookmark, BookmarkGroup, DashboardData, DashboardSettings } from './types'
+import type { Bookmark, BookmarkGroup, DashboardData, DashboardSettings, QuickSaveDraft } from './types'
 
 const DASHBOARD_DATA_KEY = 'dashboard-data'
 const LEGACY_SETTINGS_KEY = 'dashboard-settings'
+const QUICK_SAVE_DRAFT_KEY = 'quick-save-draft'
 const LEGACY_UNGROUPED_GROUP_ID = 'group-ungrouped'
 const DEFAULT_TIMESTAMP = '2026-01-01T00:00:00.000Z'
 
@@ -31,11 +32,37 @@ type UpdateBookmarkInput = Partial<{
   faviconUrl: string
 }>
 
+type DashboardBackupGroup = Partial<BookmarkGroup> & {
+  name?: string
+}
+
+type DashboardBackupBookmark = Omit<Partial<Bookmark>, 'tags'> & {
+  name?: string
+  url?: string
+  groupName?: string
+  tags?: string[] | string
+}
+
+type DashboardBackupPayload = {
+  schemaVersion?: number
+  settings?: DashboardSettings
+  groups?: DashboardBackupGroup[]
+  bookmarks?: DashboardBackupBookmark[]
+}
+
+export type DashboardBackupFile = {
+  backupVersion: 1
+  exportedAt: string
+  app: 'personal-bookmark-dashboard'
+  dashboard: DashboardBackupPayload
+}
+
 const defaultSettings: DashboardSettings = {
   locked: true,
 }
 
 let fallbackData: DashboardData | null = null
+let fallbackQuickSaveDraft: QuickSaveDraft | null = null
 
 function canUseChromeStorage() {
   return typeof chrome !== 'undefined' && Boolean(chrome.storage?.local)
@@ -59,6 +86,18 @@ function getNowTimestamp() {
 
 function normalizeTags(tags: string[] | undefined) {
   return Array.from(new Set((tags ?? []).map((tag) => tag.trim()).filter(Boolean)))
+}
+
+function normalizeImportTags(tags: string[] | string | undefined) {
+  if (Array.isArray(tags)) {
+    return normalizeTags(tags.filter((tag): tag is string => typeof tag === 'string'))
+  }
+
+  if (typeof tags === 'string') {
+    return normalizeTags(tags.split(','))
+  }
+
+  return []
 }
 
 function getNextGroupOrder(groups: BookmarkGroup[]) {
@@ -231,6 +270,149 @@ function normalizeDashboardData(value: unknown): DashboardData {
   }
 }
 
+function ensureImportedGroup(groups: BookmarkGroup[]) {
+  const existingImportedGroup = findGroupByName(groups, 'Imported')
+
+  if (existingImportedGroup) {
+    return {
+      groups,
+      groupId: existingImportedGroup.id,
+    }
+  }
+
+  const importedGroup = createGroupRecord('Imported', getNextGroupOrder(groups))
+
+  return {
+    groups: [...groups, importedGroup],
+    groupId: importedGroup.id,
+  }
+}
+
+function getBackupPayload(value: unknown): DashboardBackupPayload {
+  if (isRecord(value) && isRecord(value.dashboard)) {
+    return value.dashboard
+  }
+
+  if (isRecord(value)) {
+    return value
+  }
+
+  throw new Error('Backup file is not a valid JSON object.')
+}
+
+export function parseDashboardBackup(value: unknown): DashboardData {
+  const payload = getBackupPayload(value)
+  const rawGroups = Array.isArray(payload.groups) ? payload.groups : []
+  const rawBookmarks = Array.isArray(payload.bookmarks) ? payload.bookmarks : []
+  let groups = rawGroups
+    .map((group, index) => normalizeGroup(group, index))
+    .filter((group): group is BookmarkGroup => Boolean(group))
+    .sort((left, right) => left.order - right.order)
+    .map((group, index) => ({
+      ...group,
+      order: index,
+    }))
+
+  const bookmarks = rawBookmarks
+    .map((bookmark, index) => {
+      if (
+        !isRecord(bookmark) ||
+        typeof bookmark.name !== 'string' ||
+        typeof bookmark.url !== 'string'
+      ) {
+        return null
+      }
+
+      const requestedGroupId = typeof bookmark.groupId === 'string' ? bookmark.groupId : ''
+      const requestedGroupName =
+        typeof bookmark.groupName === 'string' ? bookmark.groupName.trim() : ''
+
+      let resolvedGroupId = groups.find((group) => group.id === requestedGroupId)?.id ?? ''
+
+      if (!resolvedGroupId && requestedGroupName) {
+        const groupResult = ensureGroupForBookmark(groups, { groupName: requestedGroupName })
+        groups = groupResult.groups
+        resolvedGroupId = groupResult.groupId
+      }
+
+      if (!resolvedGroupId) {
+        const importedGroupResult = ensureImportedGroup(groups)
+        groups = importedGroupResult.groups
+        resolvedGroupId = importedGroupResult.groupId
+      }
+
+      const normalizedBookmark: Bookmark = {
+        id: typeof bookmark.id === 'string' ? bookmark.id : createId('bookmark'),
+        name: bookmark.name.trim() || bookmark.url.trim(),
+        url: bookmark.url.trim(),
+        groupId: resolvedGroupId,
+        tags: normalizeImportTags(bookmark.tags),
+        createdAt:
+          typeof bookmark.createdAt === 'string' ? bookmark.createdAt : DEFAULT_TIMESTAMP,
+        updatedAt:
+          typeof bookmark.updatedAt === 'string' ? bookmark.updatedAt : DEFAULT_TIMESTAMP,
+        order: typeof bookmark.order === 'number' ? bookmark.order : index,
+        ...(typeof bookmark.faviconUrl === 'string'
+          ? { faviconUrl: bookmark.faviconUrl }
+          : {}),
+      }
+
+      return normalizedBookmark
+    })
+    .filter((bookmark): bookmark is Bookmark => bookmark !== null)
+
+  const normalizedGroups = groups
+    .sort((left, right) => left.order - right.order)
+    .map((group, index) => ({
+      ...group,
+      order: index,
+    }))
+  const bookmarksByGroup = new Map<string, Bookmark[]>()
+
+  bookmarks.forEach((bookmark) => {
+    const groupBookmarks = bookmarksByGroup.get(bookmark.groupId) ?? []
+    groupBookmarks.push(bookmark)
+    bookmarksByGroup.set(bookmark.groupId, groupBookmarks)
+  })
+
+  const normalizedBookmarks = Array.from(bookmarksByGroup.values())
+    .flatMap((groupBookmarks) =>
+      groupBookmarks
+        .sort((left, right) => left.order - right.order)
+        .map((bookmark, index) => ({
+          ...bookmark,
+          order: index,
+        })),
+    )
+
+  return normalizeDashboardData({
+    schemaVersion: 1,
+    settings: payload.settings,
+    groups: normalizedGroups,
+    bookmarks: normalizedBookmarks,
+  })
+}
+
+export async function exportDashboardBackup(): Promise<DashboardBackupFile> {
+  const data = await loadDashboardData()
+  const groupNamesById = new Map(data.groups.map((group) => [group.id, group.name]))
+
+  return {
+    backupVersion: 1,
+    exportedAt: getNowTimestamp(),
+    app: 'personal-bookmark-dashboard',
+    dashboard: {
+      schemaVersion: data.schemaVersion,
+      settings: data.settings,
+      groups: data.groups,
+      bookmarks: data.bookmarks.map((bookmark) => ({
+        ...bookmark,
+        groupName: groupNamesById.get(bookmark.groupId),
+      })),
+    },
+  }
+}
+
 export async function loadDashboardData(): Promise<DashboardData> {
   if (!canUseChromeStorage()) {
     fallbackData = normalizeDashboardData(fallbackData)
@@ -259,6 +441,50 @@ export async function saveDashboardData(data: DashboardData) {
   await chrome.storage.local.set({
     [DASHBOARD_DATA_KEY]: normalizedData,
   })
+}
+
+export async function saveQuickSaveDraft(draft: QuickSaveDraft) {
+  if (!canUseChromeStorage()) {
+    fallbackQuickSaveDraft = draft
+    return
+  }
+
+  await chrome.storage.local.set({
+    [QUICK_SAVE_DRAFT_KEY]: draft,
+  })
+}
+
+export async function loadQuickSaveDraft(): Promise<QuickSaveDraft | null> {
+  if (!canUseChromeStorage()) {
+    return fallbackQuickSaveDraft
+  }
+
+  const stored = await chrome.storage.local.get(QUICK_SAVE_DRAFT_KEY)
+  const draft = stored[QUICK_SAVE_DRAFT_KEY]
+
+  if (
+    !isRecord(draft) ||
+    typeof draft.name !== 'string' ||
+    typeof draft.url !== 'string' ||
+    typeof draft.capturedAt !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    name: draft.name,
+    url: draft.url,
+    capturedAt: draft.capturedAt,
+  }
+}
+
+export async function clearQuickSaveDraft() {
+  if (!canUseChromeStorage()) {
+    fallbackQuickSaveDraft = null
+    return
+  }
+
+  await chrome.storage.local.remove(QUICK_SAVE_DRAFT_KEY)
 }
 
 export async function updateDashboardData(updater: (current: DashboardData) => DashboardData) {

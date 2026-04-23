@@ -6,9 +6,14 @@ export default defineManifest({
   description:
     'Replaces the Chrome New Tab page with a dark grouped bookmark dashboard.',
   version: '0.1.0',
-  permissions: ['storage'],
+  permissions: ['storage', 'tabs'],
   action: {
     default_title: 'Open Personal Bookmark Dashboard',
+  },
+  commands: {
+    'quick-save-current-page': {
+      description: 'Quick save the current page to the dashboard',
+    },
   },
   background: {
     service_worker: 'src/background.ts',
@@ -18,4 +23,3 @@ export default defineManifest({
     newtab: 'index.html',
   },
 })
-

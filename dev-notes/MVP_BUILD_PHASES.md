@@ -197,6 +197,10 @@ Done when:
 - invalid imports fail safely
 - imported group names and tags are preserved
 
+Status:
+- implementation complete
+- awaiting end-to-end user verification in Chrome
+
 ### 8. Quick Save Shortcut
 
 Goal: save the current page quickly from anywhere in Chrome.
@@ -218,6 +222,10 @@ Done when:
 - title and URL prefill correctly
 - bookmark saves to selected/created group
 - shortcut can be remapped if needed
+
+Status:
+- implementation complete
+- awaiting end-to-end user verification in Chrome
 
 ### 9. Polish And Hardening
 
@@ -246,10 +254,8 @@ Hardening:
 
 ## Current Recommended Next Step
 
-Continue **6. Drag-And-Drop And Locking** with bookmark reordering within the same group.
+Continue with **9. Polish And Hardening**.
 
 After that:
-- move bookmarks between groups
-- export/import
-- quick-save
-- final design polish
+- README expansion
+- hardening/dependency maintenance

@@ -19,14 +19,18 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
+  clearQuickSaveDraft,
   createBookmark,
   createGroup,
   deleteBookmark,
   deleteGroup,
+  exportDashboardBackup,
   loadDashboardData,
+  loadQuickSaveDraft,
   moveBookmark,
+  parseDashboardBackup,
   reorderBookmarks,
   reorderGroups,
   saveDashboardData,
@@ -68,6 +72,10 @@ function parseTagInput(value: string) {
 
 function formatTags(tags: string[]) {
   return tags.join(', ')
+}
+
+function hasQuickSaveIntent() {
+  return new URLSearchParams(window.location.search).get('intent') === 'quick-save'
 }
 
 const dashboardCollisionDetection: CollisionDetection = (args) => {
@@ -336,9 +344,12 @@ export function App() {
   const [bookmarkUrl, setBookmarkUrl] = useState('')
   const [bookmarkTags, setBookmarkTags] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [isQuickSaveIntent, setIsQuickSaveIntent] = useState(hasQuickSaveIntent)
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [draggingBookmarkId, setDraggingBookmarkId] = useState<string | null>(null)
   const dragStartDataRef = useRef<DashboardData | null>(null)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -355,6 +366,34 @@ export function App() {
 
     void hydrateDashboardData()
   }, [])
+
+  useEffect(() => {
+    if (!dashboardData || !isQuickSaveIntent) {
+      return
+    }
+
+    async function openQuickSaveDraft() {
+      const draft = await loadQuickSaveDraft()
+
+      if (!draft) {
+        setStatusMessage('Quick save could not prefill the current page.')
+        clearQuickSaveIntentState()
+        return
+      }
+
+      setIsBookmarkFormOpen(true)
+      setEditingBookmarkId(null)
+      setEditingGroupId(null)
+      setIsAddingGroup(false)
+      setBookmarkGroupName('')
+      setBookmarkName(draft.name)
+      setBookmarkUrl(draft.url)
+      setBookmarkTags('')
+      setFormError(null)
+    }
+
+    void openQuickSaveDraft()
+  }, [dashboardData, isQuickSaveIntent])
 
   async function toggleLocked() {
     if (!dashboardData) {
@@ -373,7 +412,83 @@ export function App() {
     await saveDashboardData(nextData)
   }
 
+  function clearQuickSaveIntentState() {
+    if (!isQuickSaveIntent) {
+      return
+    }
+
+    void clearQuickSaveDraft()
+    setIsQuickSaveIntent(false)
+
+    const nextUrl = new URL(window.location.href)
+    nextUrl.searchParams.delete('intent')
+    window.history.replaceState({}, '', nextUrl)
+  }
+
+  function buildBackupFilename() {
+    const timestamp = new Date().toISOString().slice(0, 10)
+
+    return `personal-bookmark-dashboard-backup-${timestamp}.json`
+  }
+
+  async function handleExportBackup() {
+    try {
+      const backup = await exportDashboardBackup()
+      const blob = new Blob([JSON.stringify(backup, null, 2)], {
+        type: 'application/json',
+      })
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+
+      link.href = objectUrl
+      link.download = buildBackupFilename()
+      link.click()
+      URL.revokeObjectURL(objectUrl)
+      setStatusMessage('Backup exported.')
+    } catch {
+      setStatusMessage('Backup export failed.')
+    }
+  }
+
+  function openImportPicker() {
+    importInputRef.current?.click()
+  }
+
+  async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(await file.text())
+      const importedData = parseDashboardBackup(parsed)
+      const confirmed = window.confirm(
+        'Importing a backup will replace your current dashboard, including groups, bookmarks, order, and settings. Continue?',
+      )
+
+      if (!confirmed) {
+        return
+      }
+
+      await saveDashboardData(importedData)
+      setDashboardData(importedData)
+      closeForms()
+      setSearch('')
+      setSelectedTag(null)
+      setStatusMessage('Backup imported and replaced current data.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Import failed.'
+
+      setStatusMessage(message)
+    }
+  }
+
   function closeForms() {
+    clearQuickSaveIntentState()
     setIsAddingGroup(false)
     setEditingGroupId(null)
     setIsBookmarkFormOpen(false)
@@ -495,6 +610,7 @@ export function App() {
         })
 
     setDashboardData(nextData)
+    clearQuickSaveIntentState()
     closeForms()
   }
 
@@ -786,6 +902,7 @@ export function App() {
   const locked = dashboardData?.settings.locked ?? true
   const groups = dashboardData?.groups ?? []
   const bookmarks = dashboardData?.bookmarks ?? []
+  const isQuickSaveForm = isQuickSaveIntent && isBookmarkFormOpen && !editingBookmarkId
 
   const allTags = Array.from(new Set(bookmarks.flatMap((bookmark) => bookmark.tags))).sort(
     (left, right) => left.localeCompare(right),
@@ -812,8 +929,24 @@ export function App() {
             {locked ? 'Locked layout' : 'Unlocked layout'}
           </button>
 
-          <button className="secondary-button" type="button" disabled>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={!dashboardData}
+            onClick={() => {
+              void handleExportBackup()
+            }}
+          >
             Export JSON
+          </button>
+
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={!dashboardData}
+            onClick={openImportPicker}
+          >
+            Import JSON
           </button>
 
           <button
@@ -841,7 +974,17 @@ export function App() {
             Add bookmark
           </button>
         </div>
+
+        <input
+          accept="application/json,.json"
+          className="visually-hidden"
+          onChange={handleImportFile}
+          ref={importInputRef}
+          type="file"
+        />
       </header>
+
+      {statusMessage ? <p className="status-note">{statusMessage}</p> : null}
 
       {isAddingGroup || editingGroupId ? (
         <section className="form-panel" aria-label={editingGroupId ? 'Edit group' : 'Add group'}>
@@ -884,13 +1027,22 @@ export function App() {
         <section className="form-panel" aria-label={editingBookmarkId ? 'Edit bookmark' : 'Add bookmark'}>
           <form className="quick-form" onSubmit={handleCreateBookmark}>
             <div>
-              <p className="form-eyebrow">{editingBookmarkId ? 'Edit Bookmark' : 'New Bookmark'}</p>
-              <h2>{editingBookmarkId ? 'Update bookmark' : 'Add a bookmark'}</h2>
+              <p className="form-eyebrow">
+                {editingBookmarkId ? 'Edit Bookmark' : isQuickSaveForm ? 'Quick Save' : 'New Bookmark'}
+              </p>
+              <h2>
+                {editingBookmarkId
+                  ? 'Update bookmark'
+                  : isQuickSaveForm
+                    ? 'Save current page'
+                    : 'Add a bookmark'}
+              </h2>
             </div>
 
             <label>
               <span>Group</span>
               <input
+                autoFocus={isQuickSaveForm}
                 required
                 list="bookmark-group-options"
                 value={bookmarkGroupName}
@@ -916,7 +1068,7 @@ export function App() {
             <label>
               <span>URL</span>
               <input
-                autoFocus
+                autoFocus={!isQuickSaveForm}
                 value={bookmarkUrl}
                 onChange={(event) => setBookmarkUrl(event.target.value)}
                 placeholder="https://example.com"
