@@ -16,6 +16,7 @@ Build a Chrome extension that replaces the New Tab page with a dark-mode bookmar
 - bookmark rows with favicon + one-line name
 - add/edit/delete bookmarks
 - add/rename/delete groups
+- group hover action to open all bookmarks in that group
 - drag-and-drop for groups and bookmarks
 - lock/unlock toggle, locked by default
 - text search by name + URL
@@ -120,6 +121,7 @@ Render a usable bookmark dashboard with a strong dark visual style.
   - main dashboard area
   - sidebar area
 - build group card components
+- build group header hover action for "Open all"
 - build bookmark row components
 - display favicon + single-line title
 - truncate long text cleanly
@@ -134,6 +136,7 @@ Render a usable bookmark dashboard with a strong dark visual style.
 ### Done When
 - dashboard visually resembles the target direction
 - groups render as distinct cards
+- hovering a group reveals an "Open all" action without shifting layout
 - bookmarks render as compact rows
 - layout is stable and readable
 
@@ -148,6 +151,8 @@ Make bookmark and group management usable from the UI.
 - add "Add Bookmark" action
 - add "Add Group" action
 - show Edit action when hovering a bookmark
+- implement group-level "Open all" action
+- open each bookmark in the selected group when "Open all" is clicked
 - create compact edit popup anchored near bookmark row
 - support editing:
   - group
@@ -165,6 +170,7 @@ Make bookmark and group management usable from the UI.
 - bookmarks can be created from the dashboard
 - bookmarks can be edited quickly
 - bookmarks can be deleted safely
+- groups can launch all contained bookmarks from the hover action
 - groups can be added, renamed, and deleted
 
 ---

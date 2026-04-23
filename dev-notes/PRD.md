@@ -33,6 +33,7 @@ Bookmarks are organized into **groups**, and the user can:
 - rearrange groups
 - rearrange bookmarks within groups
 - move bookmarks between groups
+- open all bookmarks in a group from a hover action
 - lock the layout to avoid accidental changes
 - quickly save the current page
 - edit bookmarks with a tiny popup
@@ -56,6 +57,7 @@ The following decisions are **locked for v1**:
 - **bookmark rows with favicon + one-line name**
 - **add / edit / delete bookmarks**
 - **add / rename / delete groups**
+- **group hover action to open all bookmarks in that group**
 - **drag-and-drop for groups and bookmarks**
 - **lock / unlock toggle**, locked by default
 - **text search by name + URL**
@@ -128,6 +130,7 @@ A personal power user who wants:
 - As a user, I want to open the dashboard manually from the extension button.
 - As a user, I want to be able to save the dashboard URL and open it from the bookmark bar.
 - As a user, I want bookmarks grouped into labeled group cards.
+- As a user, I want an **Open all** action to appear when hovering a group so I can launch that group's bookmarks quickly.
 - As a user, I want each bookmark shown as a single-line row with favicon and name.
 - As a user, I want the interface to feel visually close to LumiList.
 
@@ -210,6 +213,8 @@ Default rules:
 - the user can delete groups
 - group order is persistent
 - group cards are always visible, even during filtering
+- hovering a group reveals an **Open all** action near the group name
+- clicking **Open all** opens every bookmark currently in that group
 
 Delete behavior:
 - deleting a group must be confirmed
@@ -253,6 +258,20 @@ Hover behavior:
 - when hovering a bookmark, an **Edit** link appears
 - the Edit link should appear left-aligned against the inside edge of the group box, as requested
 - the hover affordance must not cause layout shift
+
+### 7.5A Group Header Actions
+
+Each group header must:
+- show the group name
+- reveal an **Open all** action on hover
+- place the hover action next to the group name
+- avoid layout shift when the action appears
+
+Behavior:
+- clicking **Open all** opens all bookmarks in that group
+- bookmarks should open in separate tabs
+- if a group has no bookmarks, the action may be hidden or disabled
+- the interaction should feel lightweight and fast
 
 ---
 
