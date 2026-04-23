@@ -1,7 +1,7 @@
 # Personal Bookmark Dashboard - Build Checkpoint
 
 ## Current phase
-Phase 1 - Setup and scaffold complete, Chrome extension shell verified
+Phase 2 - Data model and storage layer in progress
 
 ## What is already finished
 - Initial build direction is defined
@@ -16,8 +16,28 @@ Phase 1 - Setup and scaffold complete, Chrome extension shell verified
 - new tab override is configured
 - toolbar action opens the dashboard in a tab
 - starter dark dashboard UI is in place
-- lock toggle is persisted with `chrome.storage.local`
-- starter search and tag filter shell is working on mock data
+- dashboard data model is defined for settings, groups, and bookmarks
+- storage wrapper is in place for full dashboard data in `chrome.storage.local`
+- default bootstrap starts with no groups
+- storage normalization guards against missing or malformed data
+- lock toggle is persisted as part of dashboard data
+- lock/unlock is scoped to layout movement only; add/edit/delete actions remain available while locked
+- dashboard now loads groups and bookmarks from storage instead of mock data
+- starter search and tag filter shell works against stored bookmarks
+- storage helper functions exist for group create/update/delete/reorder
+- storage helper functions exist for bookmark create/update/delete/move/reorder
+- deleting a group also deletes all bookmarks inside it after confirmation
+- Add group UI is wired to persistent storage
+- Add bookmark UI is wired to persistent storage
+- bookmark edit UI is wired to persistent storage
+- bookmark delete UI is wired with confirmation
+- group rename UI is wired to persistent storage
+- group delete UI is wired with confirmation
+- bookmark save requires a group name
+- typing a new group name while saving a bookmark creates that group
+- legacy empty `Ungrouped` groups are removed during storage normalization
+- group-level `Open all` action is wired for groups with bookmarks
+- existing-tag picker is wired in the add/edit bookmark form
 - production build is verified
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
@@ -45,7 +65,9 @@ Phase 1 - Setup and scaffold complete, Chrome extension shell verified
 - quick-save popup via keyboard command
 - export/import JSON backup
 - local storage only
-- default group = Ungrouped
+- no default Ungrouped group
+- bookmark save requires a group
+- typing a new group name while saving a bookmark creates that group
 - import mode = replace all only
 
 ## Folder structure
@@ -80,13 +102,13 @@ src/
 
 ## What still needs doing
 - refine the LumiList-inspired visual design
-- Add bookmark and group CRUD flows
 - Add drag-and-drop for groups and bookmarks
-- replace mock data with real bookmark and group state
-- extend the lock/unlock behavior to editing and drag interactions
+- apply lock/unlock only to drag-and-drop/reorder interactions
 - Build quick-save popup and keyboard command
 - Implement JSON export/import with replace-all behavior
-- Wire bookmark/group persistence through `chrome.storage.local`
+- Import behavior should create groups from imported group names
+- Import behavior should use/create `Imported` only when a bookmark has no group information
+- Import behavior should preserve existing and new free-form tags
 - expand the README further once feature-level setup and usage details exist
 
 ## Notes

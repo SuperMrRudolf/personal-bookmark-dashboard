@@ -66,7 +66,9 @@ The following decisions are **locked for v1**:
 - **quick-save popup via keyboard command**
 - **export / import JSON backup**
 - **local storage only**
-- **default group = Ungrouped**
+- **no default Ungrouped group**
+- **bookmark save requires a group**
+- **typing a new group name while saving a bookmark creates that group**
 - **import mode = replace all only**
 
 ---
@@ -149,7 +151,8 @@ A personal power user who wants:
 - As a user, I want to delete bookmarks.
 - As a user, I want a keyboard shortcut to save the current page quickly.
 - As a user, I want the quick-save popup to prefill the current page title and URL.
-- As a user, I want the quick-save popup to default to the Ungrouped group.
+- As a user, I want the quick-save popup to require a group before saving.
+- As a user, I want existing tags to be easy to reuse when adding or editing a bookmark.
 
 ### Search and Filtering
 - As a user, I want a text search box that filters instantly by bookmark name and URL.
@@ -207,7 +210,7 @@ Each group must have:
 - order index
 
 Default rules:
-- the system starts with an **Ungrouped** group
+- the system starts with no groups
 - the user can add new groups
 - the user can rename groups
 - the user can delete groups
@@ -218,8 +221,9 @@ Default rules:
 
 Delete behavior:
 - deleting a group must be confirmed
-- bookmarks from a deleted group must be handled safely
-- recommended v1 behavior: move those bookmarks to **Ungrouped** before removing the group
+- group deletion means **Delete group and bookmarks**
+- bookmarks inside the deleted group are deleted with the group
+- the confirmation must warn the user to move bookmarks out first if they want to keep them
 
 ---
 
@@ -280,7 +284,7 @@ Behavior:
 Clicking **Edit** opens a small popup near that bookmark.
 
 The popup must contain:
-- group selector
+- required group field
 - name input
 - URL input
 - tags input
@@ -290,6 +294,8 @@ The popup must contain:
 
 Behavior:
 - Save persists changes and closes the popup
+- Save requires a group
+- if the entered group name does not exist, saving creates that group
 - Cancel discards changes and closes the popup
 - Delete asks for confirmation, then deletes the bookmark
 - Escape key should close the popup when safe
@@ -301,6 +307,11 @@ For v1, tags are entered as:
 Examples:
 - `tools, docs, design`
 - stored internally as an array after trimming and normalization
+
+Reuse behavior:
+- existing tags should be shown near the tags field
+- clicking an existing tag adds or removes it from the bookmark being edited
+- typing new comma-separated tags remains supported
 
 ---
 
@@ -316,7 +327,8 @@ Minimum v1 behavior:
   - name
   - URL
   - tags
-- default group = **Ungrouped**
+- group is required
+- typing a new group name creates that group on save
 - save persists the new bookmark
 - cancel closes without saving
 
@@ -340,7 +352,7 @@ Quick-save behavior:
 3. Popup is prefilled with:
    - current page title
    - current page URL
-   - group = Ungrouped
+   - empty required group field, unless the user selects an existing group
    - empty tags
 4. User can change:
    - group
@@ -377,9 +389,11 @@ Rules:
 - state persists across sessions
 - the current state must be visually obvious
 - unlocking should feel intentional
+- locked state only disables layout movement/reordering
+- locked state must not block adding, editing, deleting, searching, filtering, import, or export
 
 Purpose:
-- prevent accidental layout changes
+- prevent accidental group/bookmark reordering
 
 ---
 
@@ -443,6 +457,19 @@ v1 rules:
 - **replace-all only**
 - ask for confirmation before destructive import
 - reject invalid/corrupted files gracefully
+
+Group handling during import:
+- if an imported bookmark includes an existing group name, use that group
+- if an imported bookmark includes a new group name, create that group
+- if an imported bookmark references a missing group ID but includes a group name, create/use the group by name
+- if an imported bookmark has no group information at all, create/use an **Imported** group
+- group names from imports must not be discarded
+
+Tag handling during import:
+- imported tags are free-form text values
+- if an imported tag already exists, reuse it
+- if an imported tag is new, create it by storing it on the imported bookmark
+- tags should be trimmed, deduplicated, and normalized the same way as manually entered tags
 
 Recommended user workflow:
 - export JSON manually
@@ -542,8 +569,8 @@ No cloud sync in v1.
   },
   "groups": [
     {
-      "id": "group_ungrouped",
-      "name": "Ungrouped",
+      "id": "group_docs",
+      "name": "Docs",
       "order": 0
     }
   ],
@@ -552,7 +579,7 @@ No cloud sync in v1.
       "id": "bm_123",
       "name": "Example",
       "url": "https://example.com",
-      "groupId": "group_ungrouped",
+      "groupId": "group_docs",
       "tags": ["tools", "docs"],
       "order": 0,
       "createdAt": "2026-01-01T00:00:00.000Z",
@@ -659,12 +686,14 @@ Optional future improvement:
 - warn the user if the same URL already exists  
 
 ### 11.5 Group Deletion
-Deleting a group should not destroy bookmarks silently.
+Deleting a group must be explicit and destructive.
 
-Recommended v1 behavior:
-- confirm deletion  
-- move contained bookmarks to Ungrouped  
-- then remove the group  
+Required v1 behavior:
+- label the action as **Delete group and bookmarks**
+- confirm deletion before continuing
+- warn that contained bookmarks will also be deleted
+- tell the user to move bookmarks out first if they want to keep them
+- delete the group and all contained bookmarks
 
 ---
 

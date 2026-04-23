@@ -25,7 +25,9 @@ Build a Chrome extension that replaces the New Tab page with a dark-mode bookmar
 - quick-save popup via keyboard command
 - export/import JSON backup
 - local storage only
-- default group = Ungrouped
+- no default Ungrouped group
+- bookmark save requires a group
+- typing a new group name while saving a bookmark creates that group
 - import mode = replace all only
 
 ---
@@ -96,7 +98,7 @@ Create the persistent local data model for groups, bookmarks, and settings.
   - bookmarks
 - create storage wrapper around `chrome.storage.local`
 - create bootstrap logic for default data
-- ensure default `Ungrouped` group exists
+- start with no default bookmark groups
 - implement create/read/update/delete helpers for bookmarks
 - implement create/read/update/delete helpers for groups
 - persist group ordering
@@ -164,7 +166,7 @@ Make bookmark and group management usable from the UI.
 - support rename group
 - support delete group with safe handling
 - decide behavior when deleting a group:
-  - move bookmarks to Ungrouped
+  - delete the group and all bookmarks inside it after confirmation
 
 ### Done When
 - bookmarks can be created from the dashboard
@@ -192,12 +194,16 @@ Support reliable manual backup and restore using JSON.
 - implement Import Backup action
 - validate imported JSON schema
 - support replace-all import only
+- create imported groups from group names found in bookmark records
+- use/create an Imported group only when imported bookmarks have no group information
+- preserve imported tags by reusing existing tag values or creating new free-form tag values
 - show confirmation before overwrite
 - reject invalid/corrupt JSON gracefully
 
 ### Done When
 - user can export a valid JSON backup file
 - user can import a valid backup file
+- imported group names and tags are preserved
 - invalid imports fail safely with clear messaging
 
 ---
@@ -271,7 +277,7 @@ Support fast capture of the current page from anywhere in Chrome.
 - prefill:
   - current page title
   - current page URL
-  - default group = Ungrouped
+  - empty required group field
   - empty tags
 - allow save/cancel from popup
 - save bookmark into storage
