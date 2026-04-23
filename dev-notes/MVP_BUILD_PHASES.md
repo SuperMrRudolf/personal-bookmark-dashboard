@@ -1,347 +1,255 @@
-# MVP Build Phases
+# MVP Build Plan
 
-This file breaks the Personal Bookmark Dashboard Chrome Extension into practical build phases for MVP delivery.
+This is the practical build plan for the Personal Bookmark Dashboard Chrome Extension. It replaces the older phase order and should be treated as the working roadmap from this point forward.
 
-## Project Summary
+## Product Summary
 
-Build a Chrome extension that replaces the New Tab page with a dark-mode bookmark dashboard inspired by LumiList, but simplified to a single page with grouped bookmarks.
+Build a local-first Chrome extension that replaces the New Tab page with a single-page, dark, LumiList-inspired bookmark dashboard.
 
-## Locked v1 Scope
+Bookmarks are organized into named groups. The dashboard supports bookmark/group management, stable search and tag filtering, intentional drag-and-drop reordering, manual backup/restore, and a quick-save shortcut.
+
+## Locked MVP Scope
 
 - Chrome extension using Manifest V3
 - New Tab override dashboard
 - one single dashboard page only
-- dark LumiList-inspired UI
-- group cards on a fixed page layout
-- bookmark rows with favicon + one-line name
-- add/edit/delete bookmarks
-- add/rename/delete groups
-- group hover action to open all bookmarks in that group
-- drag-and-drop for groups and bookmarks
-- lock/unlock toggle, locked by default
-- text search by name + URL
-- tag click filter
-- filters hide items in place without collapsing layout
-- quick-save popup via keyboard command
-- export/import JSON backup
-- local storage only
+- local storage only using `chrome.storage.local`
 - no default Ungrouped group
 - bookmark save requires a group
 - typing a new group name while saving a bookmark creates that group
-- import mode = replace all only
+- group cards with compact bookmark rows
+- bookmark rows show favicon plus one-line name
+- add/edit/delete bookmarks
+- add/rename/delete groups
+- deleting a group deletes all bookmarks inside it after confirmation
+- group-level `Open all` action
+- text search by bookmark name and URL
+- tag click filtering
+- existing-tag picker in add/edit bookmark form
+- filters hide bookmarks in place without collapsing layout
+- lock/unlock toggle, locked by default
+- lock only controls drag-and-drop/reordering
+- drag-and-drop for groups and bookmarks
+- export/import JSON backup
+- import mode is replace-all only
+- import creates groups from imported group names
+- import uses/creates `Imported` only when a bookmark has no group information
+- quick-save popup via keyboard command
+- dark LumiList-inspired final visual polish
 
----
+## Build Sequence
 
-## Phase 0 - Project Decisions and Technical Setup
+### 0. Project Setup - Complete
 
-### Goal
-Lock the MVP decisions and set up the development environment so implementation stays focused.
+Goal: lock the project direction and create the working repo.
 
-### Tasks
-- confirm final MVP scope
-- choose stack:
-  - React
-  - TypeScript
-  - Vite
-  - Manifest V3
-  - `@crxjs/vite-plugin`
-  - `chrome.storage.local`
-- create project repo
-- create GitHub repo
-- set up WSL-based development in VS Code
-- create project memory files:
-  - `dev-notes/BUILD_CHECKPOINT.md`
-  - `dev-notes/MVP_BUILD_PHASES.md`
-  - `dev-notes/PRD.md`
-
-### Done When
+Completed:
+- v1 scope and stack decisions are captured
 - repo exists locally and on GitHub
-- VS Code is opened in WSL mode
-- stack choice is locked
-- notes files exist
+- WSL/VS Code workflow is established
+- project notes exist in `dev-notes/`
+- open-source starter docs exist
 
----
+### 1. Extension Shell - Complete
 
-## Phase 1 - Extension Scaffold and New Tab Shell
+Goal: create a working Chrome extension shell.
 
-### Goal
-Create a working Chrome extension shell that loads a custom dashboard page.
+Completed:
+- Vite + React + TypeScript scaffold
+- Manifest V3 config
+- CRXJS integration
+- New Tab override
+- extension action opens the dashboard
+- starter dark dashboard shell
+- production build verified
+- unpacked extension verified in Chrome
 
-### Tasks
-- scaffold the project with Vite + React + TypeScript
-- configure Manifest V3
-- add Chrome extension plugin setup
-- create extension manifest
-- override the New Tab page
-- make the extension action open the dashboard page
-- create the initial dashboard page
-- add a basic dark shell layout
-- render placeholder sample groups and bookmarks
+### 2. Storage And Data Model - Mostly Complete
 
-### Done When
-- opening a new Chrome tab shows the custom dashboard
-- clicking the extension action opens the dashboard
-- the page builds and loads without errors
-- the UI has a basic dark theme shell
+Goal: make dashboard data persistent and reliable.
 
----
+Completed:
+- TypeScript models for settings, groups, bookmarks, and dashboard data
+- storage wrapper around `chrome.storage.local`
+- bootstrap starts with no groups
+- storage normalization for missing/malformed data
+- lock state persisted as dashboard data
+- group CRUD helpers
+- bookmark CRUD helpers
+- group reorder/bookmark move helper functions exist
+- bookmark save can create a new group from a typed group name
+- legacy empty `Ungrouped` groups are removed during normalization
+- legacy `Ungrouped` groups with bookmarks are preserved as `Imported`
 
-## Phase 2 - Data Model and Storage Layer
+Still to verify later:
+- import-specific normalization once import/export is implemented
+- larger dataset behavior
 
-### Goal
-Create the persistent local data model for groups, bookmarks, and settings.
+### 3. Core Management UI - Mostly Complete
 
-### Tasks
-- define TypeScript types for:
-  - settings
-  - groups
-  - bookmarks
-- create storage wrapper around `chrome.storage.local`
-- create bootstrap logic for default data
-- start with no default bookmark groups
-- implement create/read/update/delete helpers for bookmarks
-- implement create/read/update/delete helpers for groups
-- persist group ordering
-- persist bookmark ordering
-- persist lock state
+Goal: make bookmark and group management usable from the dashboard.
 
-### Done When
-- data survives browser refresh/reopen
-- bookmarks and groups can be loaded from storage
-- app starts with default valid data
-- storage access is abstracted cleanly
+Completed:
+- dashboard loads real stored data instead of mock data
+- add group UI
+- add bookmark UI
+- bookmark edit UI
+- bookmark delete with confirmation
+- group rename UI
+- group delete with confirmation
+- deleting a group deletes contained bookmarks
+- bookmark group field is required
+- typing a new group name while adding/editing a bookmark creates/uses that group
+- existing-tag picker in add/edit bookmark form
+- group-level `Open all`
+- top-level Add bookmark remains available even when no groups exist
+- lock does not block add/edit/delete actions
 
----
+Still to improve later:
+- convert top-of-page forms into compact anchored popups
+- improve form positioning and keyboard behavior
+- refine confirmation copy and error states during polish
 
-## Phase 3 - Core Dashboard UI
+### 4. Search And Tag Filtering - Functional Scaffold Complete
 
-### Goal
-Render a usable bookmark dashboard with a strong dark visual style.
+Goal: support fast filtering without breaking spatial memory.
 
-### Tasks
-- create layout structure:
-  - main dashboard area
-  - sidebar area
-- build group card components
-- build group header hover action for "Open all"
-- build bookmark row components
-- display favicon + single-line title
-- truncate long text cleanly
-- create dark LumiList-inspired styling:
-  - dark background
-  - soft borders
-  - rounded cards
-  - subtle accent glow
-  - muted text
-- add top controls area for future actions
+Completed:
+- search by bookmark name and URL
+- sidebar tag list from unique bookmark tags
+- click-to-filter by tag
+- hidden bookmarks preserve layout slot
+- hidden bookmarks are non-interactive
+- group cards remain visible while filtering
 
-### Done When
-- dashboard visually resembles the target direction
-- groups render as distinct cards
-- hovering a group reveals an "Open all" action without shifting layout
-- bookmarks render as compact rows
-- layout is stable and readable
+Still to improve later:
+- clearer active filter reset
+- empty-state messaging while filtered
+- polish spacing and visual hierarchy
 
----
+### 5. Core Dashboard Visual System - In Progress
 
-## Phase 4 - Add, Edit, and Delete Flows
+Goal: make the dashboard feel intentional, compact, and close to the desired LumiList-inspired direction.
 
-### Goal
-Make bookmark and group management usable from the UI.
+Current state:
+- functional dark scaffold exists
+- group cards, bookmark rows, toolbar, tags, and forms are present
+- current look is not final
 
-### Tasks
-- add "Add Bookmark" action
-- add "Add Group" action
-- show Edit action when hovering a bookmark
-- implement group-level "Open all" action
-- open each bookmark in the selected group when "Open all" is clicked
-- create compact edit popup anchored near bookmark row
-- support editing:
-  - group
-  - name
-  - URL
-  - tags
-- implement Save and Cancel
-- implement bookmark delete with confirmation
-- support rename group
-- support delete group with safe handling
-- decide behavior when deleting a group:
-  - delete the group and all bookmarks inside it after confirmation
-
-### Done When
-- bookmarks can be created from the dashboard
-- bookmarks can be edited quickly
-- bookmarks can be deleted safely
-- groups can launch all contained bookmarks from the hover action
-- groups can be added, renamed, and deleted
-
----
-
-## Phase 5 - Import and Export Backup
-
-### Goal
-Support reliable manual backup and restore using JSON.
-
-### Tasks
-- define backup JSON schema
-- implement Export Backup action
-- export:
-  - settings
-  - groups
-  - bookmarks
-  - ordering metadata
-  - version field
-- implement Import Backup action
-- validate imported JSON schema
-- support replace-all import only
-- create imported groups from group names found in bookmark records
-- use/create an Imported group only when imported bookmarks have no group information
-- preserve imported tags by reusing existing tag values or creating new free-form tag values
-- show confirmation before overwrite
-- reject invalid/corrupt JSON gracefully
-
-### Done When
-- user can export a valid JSON backup file
-- user can import a valid backup file
-- imported group names and tags are preserved
-- invalid imports fail safely with clear messaging
-
----
-
-## Phase 6 - Sidebar Search and Tag Filtering
-
-### Goal
-Add filtering without breaking spatial memory.
-
-### Tasks
-- create sidebar search input
-- implement live case-insensitive filtering by:
-  - bookmark name
-  - bookmark URL
-- create tag list from unique tags across all bookmarks
-- allow click-to-filter by tag
-- provide clear tag filter reset
-- preserve layout slots for hidden bookmarks
-- make hidden bookmarks:
-  - invisible
-  - non-interactive
-- keep all group cards visible at all times
-- prevent layout collapse/reflow during filtering
-
-### Done When
-- typing instantly filters bookmarks in place
-- clicking a tag filters bookmarks in place
-- bookmark positions do not shift
-- group cards never disappear
-- hidden bookmarks leave preserved empty space
-
----
-
-## Phase 7 - Drag-and-Drop and Locking
-
-### Goal
-Allow intentional rearrangement of groups and bookmarks while preventing accidental changes.
-
-### Tasks
-- add visible lock/unlock control
-- default to locked on load
-- persist lock state
-- disable all drag-and-drop while locked
-- enable drag-and-drop while unlocked
-- support:
-  - group reorder
-  - bookmark reorder within group
-  - bookmark move across groups
-- persist updated order after every move
-- add clear unlocked visual state
-
-### Done When
-- no accidental reordering happens while locked
-- groups can be reordered when unlocked
-- bookmarks can be moved within and across groups when unlocked
-- new order persists after reload
-
----
-
-## Phase 8 - Quick Save Shortcut
-
-### Goal
-Support fast capture of the current page from anywhere in Chrome.
-
-### Tasks
-- add background/service worker command handling
-- define keyboard shortcut command in manifest
-- use a safe default shortcut only if Chrome allows it
-- allow the shortcut to be changed by the user in `chrome://extensions/shortcuts`
-- open quick-save popup when command is triggered
-- prefill:
-  - current page title
-  - current page URL
-  - empty required group field
-  - empty tags
-- allow save/cancel from popup
-- save bookmark into storage
-
-### Done When
-- shortcut triggers quick-save flow
-- current page title and URL are prefilled
-- bookmark saves correctly to selected group
-- the shortcut can be remapped safely if the default is unavailable or conflicts
-
----
-
-## Phase 9 - Polish and Hardening
-
-### Goal
-Improve quality, feel, and stability so the extension feels finished.
-
-### Tasks
-- refine spacing, hover states, and typography
+Still to do:
+- redesign visual language after core behavior stabilizes
+- compact bookmark rows further
+- improve typography, spacing, hover states, and card treatment
+- replace temporary top panels with small popups
+- make desktop and mobile layouts feel deliberate
+- improve favicon fallback visuals
 - improve empty states
-- improve favicon fallback behavior
-- improve popup positioning and keyboard flow
-- improve accessibility:
-  - focus states
-  - labels
-  - contrast
-- test with larger bookmark counts
-- test edge cases:
-  - empty groups
-  - duplicate URLs
-  - invalid URLs
-  - broken favicon URLs
-  - invalid import files
+
+### 6. Drag-And-Drop And Locking - Next Major Feature
+
+Goal: allow intentional layout changes while preventing accidental movement.
+
+Rules:
+- default state is locked
+- locked state disables drag-and-drop/reordering only
+- locked state does not block add/edit/delete/search/filter/open-all/import/export
+- unlocked state enables reordering
+
+Implementation slices:
+- reorder groups while unlocked using sortable drag behavior - complete
+- reorder bookmarks within the same group while unlocked - complete
+- move bookmarks between groups while unlocked - complete
+- persist every order change
+- add a clear unlocked visual state
+
+Done when:
+- no dragging happens while locked
+- groups reorder while unlocked
+- bookmarks reorder within groups while unlocked
+- bookmarks move between groups while unlocked
+- all order changes persist after refresh/new tab
+
+### 7. Export And Import Backup
+
+Goal: support reliable manual backup/restore.
+
+Export requirements:
+- export settings
+- export groups
+- export bookmarks
+- export ordering metadata
+- export schema/version metadata
+
+Import requirements:
+- replace-all import only
+- validate schema before replacing data
+- confirm before overwrite
+- reject invalid/corrupt JSON safely
+- preserve imported group names
+- create missing groups from imported group names
+- use/create `Imported` only when a bookmark has no group information
+- preserve imported tags
+- trim, dedupe, and normalize imported tags
+
+Done when:
+- user can export a valid JSON backup
+- user can import a valid JSON backup
+- invalid imports fail safely
+- imported group names and tags are preserved
+
+### 8. Quick Save Shortcut
+
+Goal: save the current page quickly from anywhere in Chrome.
+
+Requirements:
+- add keyboard command in manifest
+- use a safe default shortcut only if Chrome allows it
+- allow user remapping via `chrome://extensions/shortcuts`
+- command opens quick-save popup
+- popup prefills current page title and URL
+- group is required before saving
+- user can type an existing or new group name
+- tags default empty
+- save creates bookmark in storage
+- cancel closes without saving
+
+Done when:
+- shortcut triggers quick-save
+- title and URL prefill correctly
+- bookmark saves to selected/created group
+- shortcut can be remapped if needed
+
+### 9. Polish And Hardening
+
+Goal: make the extension feel finished and safe for daily use.
+
+Polish:
+- final LumiList-inspired visual pass
+- compact anchored popups
+- improved motion/hover/focus states
+- better empty states
+- better tag/filter reset states
+- improved responsive layout
+
+Hardening:
+- test larger bookmark counts
+- test empty groups
+- test duplicate URLs
+- test invalid URLs
+- test broken favicon URLs
+- test invalid import files
+- review dependency audit warning for Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`
+- update build tooling carefully instead of running `npm audit fix --force` casually
+- improve accessibility labels, focus states, and contrast
 - clean up code structure and comments
-- update README with install/build instructions
+- update README with install/build/use instructions
 
-### Done When
-- extension feels smooth and intentional
-- common edge cases are handled
-- README is usable
-- codebase is ready for long-term iteration
+## Current Recommended Next Step
 
----
+Continue **6. Drag-And-Drop And Locking** with bookmark reordering within the same group.
 
-## Recommended Build Order
-
-1. Phase 0 - Project Decisions and Technical Setup
-2. Phase 1 - Extension Scaffold and New Tab Shell
-3. Phase 2 - Data Model and Storage Layer
-4. Phase 3 - Core Dashboard UI
-5. Phase 4 - Add, Edit, and Delete Flows
-6. Phase 5 - Import and Export Backup
-7. Phase 6 - Sidebar Search and Tag Filtering
-8. Phase 7 - Drag-and-Drop and Locking
-9. Phase 8 - Quick Save Shortcut
-10. Phase 9 - Polish and Hardening
-
----
-
-## Implementation Note
-
-Keep the official phase order as-is, but treat **Phase 3 - Core Dashboard UI** and **Phase 4 - Add, Edit, and Delete Flows** as one practical implementation stream during development.
-
-Reasoning:
-- once the real storage layer exists, the fastest path is usually to build the real UI and basic CRUD together
-- search and tag filtering should still come before drag-and-drop because they are core to the product and lower risk to implement
-- quick-save should remain later because it depends on stable storage and editing flows
+After that:
+- move bookmarks between groups
+- export/import
+- quick-save
+- final design polish

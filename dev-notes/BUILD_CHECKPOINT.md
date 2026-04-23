@@ -38,6 +38,10 @@ Phase 2 - Data model and storage layer in progress
 - legacy empty `Ungrouped` groups are removed during storage normalization
 - group-level `Open all` action is wired for groups with bookmarks
 - existing-tag picker is wired in the add/edit bookmark form
+- group drag-and-drop reorder uses sortable drag behavior while unlocked
+- bookmark drag-and-drop reorder within the same group uses sortable drag behavior while unlocked
+- bookmark drag-and-drop move between groups uses sortable drag behavior while unlocked
+- group drag-and-drop is disabled while locked
 - production build is verified
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
@@ -102,15 +106,17 @@ src/
 
 ## What still needs doing
 - refine the LumiList-inspired visual design
-- Add drag-and-drop for groups and bookmarks
+- Add drag-and-drop for bookmarks within and across groups
 - apply lock/unlock only to drag-and-drop/reorder interactions
 - Build quick-save popup and keyboard command
 - Implement JSON export/import with replace-all behavior
 - Import behavior should create groups from imported group names
 - Import behavior should use/create `Imported` only when a bookmark has no group information
 - Import behavior should preserve existing and new free-form tags
+- review dependency audit warning before release: `npm audit` currently reports high-severity Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`; do not use `npm audit fix --force` casually because npm marks the available fix as a breaking CRXJS change
 - expand the README further once feature-level setup and usage details exist
 
 ## Notes
 - Working inside WSL Ubuntu
 - Using VS Code + Codex
+- Dependency audit note from 2026-04-23: the current warning affects local build tooling, not dashboard runtime code, but should be revisited during hardening/dependency maintenance.
