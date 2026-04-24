@@ -375,6 +375,10 @@ Behavior:
 - when **locked**, drag-and-drop is disabled
 - when **unlocked**, drag-and-drop is enabled
 - order changes persist immediately after drop
+- drag preview and final saved order must match
+- when moving a bookmark between groups, the target gap should follow the pointer smoothly
+- dropping outside valid group/bookmark targets must not crash the dashboard or corrupt stored data
+- same-group bookmark reordering, cross-group bookmark movement, and group reordering must remain independent enough that fixing one path does not regress the others
 
 ---
 

@@ -8,6 +8,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
@@ -29,10 +30,7 @@ import {
   exportDashboardBackup,
   loadDashboardData,
   loadQuickSaveDraft,
-  moveBookmark,
   parseDashboardBackup,
-  reorderBookmarks,
-  reorderGroups,
   saveDashboardData,
   updateBookmark,
   updateGroup,
@@ -78,7 +76,10 @@ function hasQuickSaveIntent() {
   return new URLSearchParams(window.location.search).get('intent') === 'quick-save'
 }
 
+let lastPointerCoordinates: { x: number; y: number } | null = null
+
 const dashboardCollisionDetection: CollisionDetection = (args) => {
+  lastPointerCoordinates = args.pointerCoordinates ?? null
   const activeType = args.active.data.current?.type
 
   if (activeType !== 'group' && activeType !== 'bookmark') {
@@ -105,28 +106,35 @@ const dashboardCollisionDetection: CollisionDetection = (args) => {
     return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(filteredArgs)
   }
 
-  const pointerCollisions = pointerWithin(filteredArgs)
-  const bookmarkCollisions = pointerCollisions.filter(
-    (collision) => collision.data?.droppableContainer.data.current?.type === 'bookmark',
+  const bookmarkContainers = droppableContainers.filter(
+    (container) => container.data.current?.type === 'bookmark',
   )
-  const groupCollisions = pointerCollisions.filter(
-    (collision) => collision.data?.droppableContainer.data.current?.type === 'group',
+  const groupContainers = droppableContainers.filter(
+    (container) => container.data.current?.type === 'group',
   )
-
-  if (bookmarkCollisions.length > 0) {
-    return bookmarkCollisions
-  }
-
-  if (groupCollisions.length > 0) {
-    return groupCollisions
-  }
-
-  return closestCenter({
+  const groupPointerCollisions = pointerWithin({
     ...args,
-    droppableContainers: droppableContainers.filter(
-      (container) => container.data.current?.type === 'bookmark',
-    ),
+    droppableContainers: groupContainers,
   })
+
+  if (groupPointerCollisions.length > 0) {
+    const targetGroupId = String(groupPointerCollisions[0].id)
+    const targetGroupBookmarkContainers = bookmarkContainers.filter(
+      (container) => container.data.current?.bookmark?.groupId === targetGroupId,
+    )
+    const bookmarkCollisions = closestCenter({
+      ...args,
+      droppableContainers: targetGroupBookmarkContainers,
+    })
+
+    if (bookmarkCollisions.length > 0) {
+      return bookmarkCollisions
+    }
+
+    return groupPointerCollisions
+  }
+
+  return []
 }
 
 type GroupCardContentProps = {
@@ -134,6 +142,7 @@ type GroupCardContentProps = {
   groupBookmarks: Bookmark[]
   locked: boolean
   bookmarkSortingDisabled: boolean
+  suppressBookmarkTransforms: boolean
   search: string
   selectedTag: string | null
   onAddBookmark: (groupName: string) => void
@@ -147,6 +156,7 @@ function GroupCardContent({
   groupBookmarks,
   locked,
   bookmarkSortingDisabled,
+  suppressBookmarkTransforms,
   search,
   selectedTag,
   onAddBookmark,
@@ -199,6 +209,7 @@ function GroupCardContent({
               onEditBookmark={onEditBookmark}
               search={search}
               selectedTag={selectedTag}
+              suppressTransform={suppressBookmarkTransforms}
             />
           ))}
 
@@ -233,6 +244,7 @@ function SortableGroupCard(props: SortableGroupCardProps) {
   return (
     <section
       className={`group-card ${props.locked || props.groupSortingDisabled ? '' : 'is-sortable'} ${isDragging ? 'is-dragging' : ''}`}
+      data-group-id={props.group.id}
       ref={setNodeRef}
       style={style}
       {...attributes}
@@ -249,6 +261,7 @@ type SortableBookmarkRowProps = {
   search: string
   selectedTag: string | null
   onEditBookmark: (bookmark: Bookmark) => void
+  suppressTransform: boolean
 }
 
 function BookmarkRow({
@@ -301,6 +314,7 @@ function SortableBookmarkRow({
   search,
   selectedTag,
   onEditBookmark,
+  suppressTransform,
 }: SortableBookmarkRowProps) {
   const visible = matchesBookmark(search, selectedTag, bookmark)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -312,13 +326,14 @@ function SortableBookmarkRow({
     },
   })
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: suppressTransform ? undefined : CSS.Transform.toString(transform),
+    transition: suppressTransform ? undefined : transition,
   }
 
   return (
     <div
       className={`bookmark-row ${visible ? '' : 'is-hidden'} ${locked || !visible ? '' : 'is-sortable'} ${isDragging ? 'is-dragging' : ''}`}
+      data-bookmark-id={bookmark.id}
       key={bookmark.id}
       ref={setNodeRef}
       style={style}
@@ -349,6 +364,7 @@ export function App() {
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [draggingBookmarkId, setDraggingBookmarkId] = useState<string | null>(null)
   const dragStartDataRef = useRef<DashboardData | null>(null)
+  const latestDashboardDataRef = useRef<DashboardData | null>(null)
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -366,6 +382,10 @@ export function App() {
 
     void hydrateDashboardData()
   }, [])
+
+  useEffect(() => {
+    latestDashboardDataRef.current = dashboardData
+  }, [dashboardData])
 
   useEffect(() => {
     if (!dashboardData || !isQuickSaveIntent) {
@@ -647,10 +667,10 @@ export function App() {
     })
   }
 
-  function handleGroupDragStart(event: DragStartEvent) {
+  function handleDragStart(event: DragStartEvent) {
     const dragType = event.active.data.current?.type
 
-    dragStartDataRef.current = dashboardData
+    dragStartDataRef.current = latestDashboardDataRef.current ?? dashboardData
 
     if (dragType === 'group') {
       setDraggingGroupId(String(event.active.id))
@@ -675,7 +695,15 @@ export function App() {
     }
   }
 
-  function getOverGroupId(event: DragOverEvent | DragEndEvent) {
+  function handleDragMove(event: DragMoveEvent) {
+    const dragType = event.active.data.current?.type
+
+    if (dragType === 'bookmark') {
+      previewBookmarkReorder(event)
+    }
+  }
+
+  function getOverGroupId(event: DragOverEvent) {
     const overType = event.over?.data.current?.type
 
     if (overType === 'group') {
@@ -709,17 +737,20 @@ export function App() {
         return current
       }
 
-      return {
+      const nextData = {
         ...current,
         groups: arrayMove(current.groups, oldIndex, newIndex).map((group, index) => ({
           ...group,
           order: index,
         })),
       }
+
+      latestDashboardDataRef.current = nextData
+      return nextData
     })
   }
 
-  function previewBookmarkReorder(event: DragOverEvent) {
+  function previewBookmarkReorder(event: DragOverEvent | DragMoveEvent) {
     const activeBookmarkId = String(event.active.id)
     const overType = event.over?.data.current?.type
 
@@ -733,78 +764,106 @@ export function App() {
       }
 
       const activeBookmark = current.bookmarks.find((bookmark) => bookmark.id === activeBookmarkId)
+      const originalBookmark = dragStartDataRef.current?.bookmarks.find(
+        (bookmark) => bookmark.id === activeBookmarkId,
+      )
 
       if (!activeBookmark) {
         return current
       }
 
-      if (overType === 'bookmark') {
-        const overBookmarkId = String(event.over?.id)
-        const overBookmark = current.bookmarks.find((bookmark) => bookmark.id === overBookmarkId)
+      const originalGroupId = originalBookmark?.groupId ?? activeBookmark.groupId
+      const projection = projectCrossGroupBookmarkMove(current, activeBookmark, originalGroupId)
 
-        if (!overBookmark) {
-          return current
-        }
-
-        if (activeBookmark.groupId === overBookmark.groupId) {
-          const groupBookmarks = current.bookmarks
-            .filter((bookmark) => bookmark.groupId === activeBookmark.groupId)
-            .sort((left, right) => left.order - right.order)
-          const oldIndex = groupBookmarks.findIndex((bookmark) => bookmark.id === activeBookmarkId)
-          const newIndex = groupBookmarks.findIndex((bookmark) => bookmark.id === overBookmarkId)
-
-          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
-            return current
-          }
-
-          const reorderedBookmarks = arrayMove(groupBookmarks, oldIndex, newIndex).map(
-            (bookmark, index) => ({
-              ...bookmark,
-              order: index,
-            }),
-          )
-
-          return {
-            ...current,
-            bookmarks: [
-              ...current.bookmarks.filter((bookmark) => bookmark.groupId !== activeBookmark.groupId),
-              ...reorderedBookmarks,
-            ],
-          }
-        }
-
-        return moveBookmarkPreview(current, activeBookmark, overBookmark.groupId, overBookmark.id)
+      if (!projection) {
+        return current
       }
 
-      const targetGroupId = String(event.over?.id)
-
-      return moveBookmarkPreview(current, activeBookmark, targetGroupId)
+      latestDashboardDataRef.current = projection
+      return projection
     })
   }
 
-  function moveBookmarkPreview(
+  function projectCrossGroupBookmarkMove(
     current: DashboardData,
     activeBookmark: Bookmark,
-    targetGroupId: string,
-    beforeBookmarkId?: string,
+    originalGroupId: string,
   ) {
+    const pointer = lastPointerCoordinates
+
+    if (!pointer) {
+      return null
+    }
+
+    const targetGroupElement = document
+      .elementsFromPoint(pointer.x, pointer.y)
+      .map((element) =>
+        element instanceof HTMLElement
+          ? element.closest<HTMLElement>('[data-group-id]')
+          : null,
+      )
+      .find((element): element is HTMLElement => Boolean(element))
+    const targetGroupId = targetGroupElement?.dataset.groupId
+
+    if (!targetGroupId) {
+      return null
+    }
+
+    if (targetGroupId === originalGroupId && activeBookmark.groupId === originalGroupId) {
+      return null
+    }
+
     const targetGroupExists = current.groups.some((group) => group.id === targetGroupId)
 
     if (!targetGroupExists) {
-      return current
+      return null
     }
 
+    const targetIndex = getTargetBookmarkIndex(targetGroupElement, activeBookmark.id, pointer.y)
+
+    return moveBookmarkToIndex(current, activeBookmark, targetGroupId, targetIndex)
+  }
+
+  function getTargetBookmarkIndex(
+    targetGroupElement: HTMLElement,
+    activeBookmarkId: string,
+    pointerY: number,
+  ) {
+    const rowElements = Array.from(
+      targetGroupElement.querySelectorAll<HTMLElement>('.bookmark-row[data-bookmark-id]:not(.is-hidden)'),
+    ).filter((rowElement) => rowElement.dataset.bookmarkId !== activeBookmarkId)
+
+    return rowElements.findIndex((rowElement) => {
+      const rect = rowElement.getBoundingClientRect()
+
+      return pointerY < rect.top + rect.height / 2
+    })
+  }
+
+  function moveBookmarkToIndex(
+    current: DashboardData,
+    activeBookmark: Bookmark,
+    targetGroupId: string,
+    targetIndex: number,
+  ) {
     const sourceGroupId = activeBookmark.groupId
+    const currentTargetBookmarks = current.bookmarks
+      .filter((bookmark) => bookmark.groupId === targetGroupId)
+      .sort((left, right) => left.order - right.order)
     const targetBookmarks = current.bookmarks
       .filter((bookmark) => bookmark.groupId === targetGroupId && bookmark.id !== activeBookmark.id)
       .sort((left, right) => left.order - right.order)
-    const requestedIndex = beforeBookmarkId
-      ? targetBookmarks.findIndex((bookmark) => bookmark.id === beforeBookmarkId)
-      : targetBookmarks.length
     const safeIndex = Math.max(
       0,
-      Math.min(requestedIndex === -1 ? targetBookmarks.length : requestedIndex, targetBookmarks.length),
+      Math.min(targetIndex === -1 ? targetBookmarks.length : targetIndex, targetBookmarks.length),
     )
+    const currentIndex = currentTargetBookmarks.findIndex(
+      (bookmark) => bookmark.id === activeBookmark.id,
+    )
+
+    if (sourceGroupId === targetGroupId && currentIndex === safeIndex) {
+      return null
+    }
 
     targetBookmarks.splice(safeIndex, 0, {
       ...activeBookmark,
@@ -843,13 +902,14 @@ export function App() {
     setDraggingBookmarkId(null)
 
     if (dragStartDataRef.current) {
+      latestDashboardDataRef.current = dragStartDataRef.current
       setDashboardData(dragStartDataRef.current)
     }
 
     dragStartDataRef.current = null
   }
 
-  async function handleGroupDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     const dragType = event.active.data.current?.type
 
     setDraggingGroupId(null)
@@ -866,43 +926,124 @@ export function App() {
       return
     }
 
-    const activeGroupId = String(event.active.id)
+    if (!event.over) {
+      if (dragStartDataRef.current) {
+        latestDashboardDataRef.current = dragStartDataRef.current
+        setDashboardData(dragStartDataRef.current)
+      }
 
-    if (!groups.some((group) => group.id === activeGroupId)) {
       dragStartDataRef.current = null
       return
     }
 
-    const nextData = await reorderGroups(groups.map((group) => group.id))
-    setDashboardData(nextData)
+    const currentData = latestDashboardDataRef.current
+    const activeGroupId = String(event.active.id)
+
+    if (!currentData?.groups.some((group) => group.id === activeGroupId)) {
+      dragStartDataRef.current = null
+      return
+    }
+
+    await saveDashboardData(currentData)
     dragStartDataRef.current = null
   }
 
   async function handleBookmarkDragEnd(event: DragEndEvent) {
+    const over = event.over
+    const currentData = latestDashboardDataRef.current
     const activeBookmarkId = String(event.active.id)
-    const activeBookmark = bookmarks.find((bookmark) => bookmark.id === activeBookmarkId)
+    const previewBookmark = currentData?.bookmarks.find((bookmark) => bookmark.id === activeBookmarkId)
+    const originalBookmark = dragStartDataRef.current?.bookmarks.find(
+      (bookmark) => bookmark.id === activeBookmarkId,
+    )
+    const originalGroupId = originalBookmark?.groupId ?? previewBookmark?.groupId
+    const hasPreviewMovedAcrossGroups =
+      Boolean(previewBookmark) &&
+      Boolean(originalGroupId) &&
+      previewBookmark?.groupId !== originalGroupId
 
-    if (!activeBookmark) {
+    if (!over) {
+      if (hasPreviewMovedAcrossGroups && currentData) {
+        latestDashboardDataRef.current = currentData
+        setDashboardData(currentData)
+        await saveDashboardData(currentData)
+        return
+      }
+
+      if (dragStartDataRef.current) {
+        latestDashboardDataRef.current = dragStartDataRef.current
+        setDashboardData(dragStartDataRef.current)
+      }
+
       return
     }
 
-    const groupBookmarks = bookmarks
-      .filter((bookmark) => bookmark.groupId === activeBookmark.groupId)
-      .sort((left, right) => left.order - right.order)
-    const targetIndex = groupBookmarks.findIndex((bookmark) => bookmark.id === activeBookmarkId)
+    const activeBookmark = previewBookmark
+    const overType = over.data.current?.type
 
-    if (targetIndex === -1) {
+    if (!activeBookmark || !currentData) {
       return
     }
 
-    const nextData = await moveBookmark(activeBookmarkId, activeBookmark.groupId, targetIndex)
-    setDashboardData(nextData)
+    if (hasPreviewMovedAcrossGroups) {
+      latestDashboardDataRef.current = currentData
+      setDashboardData(currentData)
+      await saveDashboardData(currentData)
+      return
+    }
+
+    if (overType === 'bookmark') {
+      const overBookmarkId = String(over.id)
+      const overBookmark = currentData.bookmarks.find((bookmark) => bookmark.id === overBookmarkId)
+
+      if (overBookmark && activeBookmark.groupId === overBookmark.groupId) {
+        const groupBookmarks = currentData.bookmarks
+          .filter((bookmark) => bookmark.groupId === activeBookmark.groupId)
+          .sort((left, right) => left.order - right.order)
+        const oldIndex = groupBookmarks.findIndex((bookmark) => bookmark.id === activeBookmarkId)
+        const newIndex = groupBookmarks.findIndex((bookmark) => bookmark.id === overBookmarkId)
+
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          const reorderedBookmarks = arrayMove(groupBookmarks, oldIndex, newIndex).map(
+            (bookmark, index) => ({
+              ...bookmark,
+              order: index,
+            }),
+          )
+          const nextData = {
+            ...currentData,
+            bookmarks: [
+              ...currentData.bookmarks.filter((bookmark) => bookmark.groupId !== activeBookmark.groupId),
+              ...reorderedBookmarks,
+            ],
+          }
+
+          latestDashboardDataRef.current = nextData
+          setDashboardData(nextData)
+          await saveDashboardData(nextData)
+          return
+        }
+      }
+    }
+
+    await saveDashboardData(currentData)
   }
 
   const locked = dashboardData?.settings.locked ?? true
   const groups = dashboardData?.groups ?? []
   const bookmarks = dashboardData?.bookmarks ?? []
   const isQuickSaveForm = isQuickSaveIntent && isBookmarkFormOpen && !editingBookmarkId
+  const draggingBookmark = draggingBookmarkId
+    ? bookmarks.find((bookmark) => bookmark.id === draggingBookmarkId)
+    : null
+  const dragStartBookmark = draggingBookmarkId
+    ? dragStartDataRef.current?.bookmarks.find((bookmark) => bookmark.id === draggingBookmarkId)
+    : null
+  const isCrossGroupBookmarkDrag = Boolean(
+    draggingBookmark &&
+      dragStartBookmark &&
+      draggingBookmark.groupId !== dragStartBookmark.groupId,
+  )
 
   const allTags = Array.from(new Set(bookmarks.flatMap((bookmark) => bookmark.tags))).sort(
     (left, right) => left.localeCompare(right),
@@ -1166,10 +1307,11 @@ export function App() {
           collisionDetection={dashboardCollisionDetection}
           onDragCancel={handleDragCancel}
           onDragEnd={(event) => {
-            void handleGroupDragEnd(event)
+            void handleDragEnd(event)
           }}
+          onDragMove={handleDragMove}
           onDragOver={handleDragOver}
-          onDragStart={handleGroupDragStart}
+          onDragStart={handleDragStart}
           sensors={sensors}
         >
           <SortableContext items={groups.map((group) => group.id)} strategy={rectSortingStrategy}>
@@ -1193,6 +1335,7 @@ export function App() {
                     onOpenGroupBookmarks={openGroupBookmarks}
                     search={search}
                     selectedTag={selectedTag}
+                    suppressBookmarkTransforms={isCrossGroupBookmarkDrag}
                   />
                 )
               })}
@@ -1225,6 +1368,7 @@ export function App() {
                       onOpenGroupBookmarks={openGroupBookmarks}
                       search={search}
                       selectedTag={selectedTag}
+                      suppressBookmarkTransforms
                     />
                   </section>
                 )

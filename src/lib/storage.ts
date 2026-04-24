@@ -558,27 +558,6 @@ export async function deleteGroup(groupId: string) {
   })
 }
 
-export async function reorderGroups(groupIds: string[]) {
-  return updateDashboardData((current) => {
-    const requestedOrder = new Map(groupIds.map((groupId, index) => [groupId, index]))
-    const requestedCount = requestedOrder.size
-
-    return {
-      ...current,
-      groups: current.groups
-        .map((group) => ({
-          ...group,
-          order: requestedOrder.get(group.id) ?? requestedCount + group.order,
-        }))
-        .sort((left, right) => left.order - right.order)
-        .map((group, index) => ({
-          ...group,
-          order: index,
-        })),
-    }
-  })
-}
-
 export async function createBookmark(input: CreateBookmarkInput) {
   return updateDashboardData((current) => {
     const now = getNowTimestamp()
@@ -648,67 +627,4 @@ export async function deleteBookmark(bookmarkId: string) {
     ...current,
     bookmarks: current.bookmarks.filter((bookmark) => bookmark.id !== bookmarkId),
   }))
-}
-
-export async function moveBookmark(bookmarkId: string, targetGroupId: string, targetIndex: number) {
-  return updateDashboardData((current) => {
-    const bookmarkToMove = current.bookmarks.find((bookmark) => bookmark.id === bookmarkId)
-
-    if (!bookmarkToMove) {
-      throw new Error(`Bookmark "${bookmarkId}" does not exist.`)
-    }
-
-    const groupResult = ensureGroupForBookmark(current.groups, { groupId: targetGroupId })
-    const resolvedGroupId = groupResult.groupId
-    const targetBookmarks = current.bookmarks
-      .filter((bookmark) => bookmark.groupId === resolvedGroupId && bookmark.id !== bookmarkId)
-      .sort((left, right) => left.order - right.order)
-    const safeIndex = Math.max(0, Math.min(targetIndex, targetBookmarks.length))
-
-    targetBookmarks.splice(safeIndex, 0, {
-      ...bookmarkToMove,
-      groupId: resolvedGroupId,
-      updatedAt: getNowTimestamp(),
-    })
-
-    const reorderedTargetBookmarks = targetBookmarks.map((bookmark, index) => ({
-      ...bookmark,
-      order: index,
-    }))
-
-    return {
-      ...current,
-      groups: groupResult.groups,
-      bookmarks: [
-        ...current.bookmarks.filter(
-          (bookmark) => bookmark.groupId !== resolvedGroupId && bookmark.id !== bookmarkId,
-        ),
-        ...reorderedTargetBookmarks,
-      ],
-    }
-  })
-}
-
-export async function reorderBookmarks(groupId: string, bookmarkIds: string[]) {
-  return updateDashboardData((current) => {
-    const groupResult = ensureGroupForBookmark(current.groups, { groupId })
-    const resolvedGroupId = groupResult.groupId
-    const requestedOrder = new Map(bookmarkIds.map((bookmarkId, index) => [bookmarkId, index]))
-    const requestedCount = requestedOrder.size
-
-    return {
-      ...current,
-      groups: groupResult.groups,
-      bookmarks: current.bookmarks.map((bookmark) => {
-        if (bookmark.groupId !== resolvedGroupId) {
-          return bookmark
-        }
-
-        return {
-          ...bookmark,
-          order: requestedOrder.get(bookmark.id) ?? requestedCount + bookmark.order,
-        }
-      }),
-    }
-  })
 }

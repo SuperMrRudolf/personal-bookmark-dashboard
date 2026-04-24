@@ -1,7 +1,7 @@
 # Personal Bookmark Dashboard - Build Checkpoint
 
 ## Current phase
-Phase 2 - Data model and storage layer in progress
+Phase 9 - Polish and hardening in progress
 
 ## What is already finished
 - Initial build direction is defined
@@ -24,8 +24,8 @@ Phase 2 - Data model and storage layer in progress
 - lock/unlock is scoped to layout movement only; add/edit/delete actions remain available while locked
 - dashboard now loads groups and bookmarks from storage instead of mock data
 - starter search and tag filter shell works against stored bookmarks
-- storage helper functions exist for group create/update/delete/reorder
-- storage helper functions exist for bookmark create/update/delete/move/reorder
+- storage helper functions exist for group create/update/delete
+- storage helper functions exist for bookmark create/update/delete
 - deleting a group also deletes all bookmarks inside it after confirmation
 - Add group UI is wired to persistent storage
 - Add bookmark UI is wired to persistent storage
@@ -41,6 +41,8 @@ Phase 2 - Data model and storage layer in progress
 - group drag-and-drop reorder uses sortable drag behavior while unlocked
 - bookmark drag-and-drop reorder within the same group uses sortable drag behavior while unlocked
 - bookmark drag-and-drop move between groups uses sortable drag behavior while unlocked
+- drag-and-drop release behavior now commits the previewed dashboard state instead of recomputing placement on drop
+- group drag, same-group bookmark drag, and cross-group bookmark drag have been user-tested as working smoothly
 - group drag-and-drop is disabled while locked
 - export JSON backup is wired from the dashboard
 - import JSON backup is wired from the dashboard with replace-all confirmation
@@ -51,6 +53,8 @@ Phase 2 - Data model and storage layer in progress
 - background worker captures the current tab for quick-save
 - quick-save opens the dashboard with a prefilled bookmark form
 - quick-save requires group selection before saving
+- extension icon assets are present and referenced by the manifest
+- temporary drag-and-drop research notes were removed after the issue was fixed
 - production build is verified
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
@@ -115,6 +119,8 @@ src/
 
 ## What still needs doing
 - refine the LumiList-inspired visual design
+- convert top-of-page add/edit forms into compact popups/anchored panels
+- run a final larger-dataset drag/search/import/export pass
 - review dependency audit warning before release: `npm audit` currently reports high-severity Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`; do not use `npm audit fix --force` casually because npm marks the available fix as a breaking CRXJS change
 - expand the README further once feature-level setup and usage details exist
 
@@ -122,3 +128,4 @@ src/
 - Working inside WSL Ubuntu
 - Using VS Code + Codex
 - Dependency audit note from 2026-04-23: the current warning affects local build tooling, not dashboard runtime code, but should be revisited during hardening/dependency maintenance.
+- Drag-and-drop implementation note: the working approach uses `dnd-kit`, previews cross-group bookmark movement during drag movement, suppresses conflicting row transforms after crossing groups, and saves the already-previewed state on release.

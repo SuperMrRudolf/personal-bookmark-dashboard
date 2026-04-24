@@ -64,7 +64,7 @@ Completed:
 - production build verified
 - unpacked extension verified in Chrome
 
-### 2. Storage And Data Model - Mostly Complete
+### 2. Storage And Data Model - Complete
 
 Goal: make dashboard data persistent and reliable.
 
@@ -76,16 +76,12 @@ Completed:
 - lock state persisted as dashboard data
 - group CRUD helpers
 - bookmark CRUD helpers
-- group reorder/bookmark move helper functions exist
 - bookmark save can create a new group from a typed group name
 - legacy empty `Ungrouped` groups are removed during normalization
 - legacy `Ungrouped` groups with bookmarks are preserved as `Imported`
+- import-specific normalization is implemented for backup restore
 
-Still to verify later:
-- import-specific normalization once import/export is implemented
-- larger dataset behavior
-
-### 3. Core Management UI - Mostly Complete
+### 3. Core Management UI - Complete
 
 Goal: make bookmark and group management usable from the dashboard.
 
@@ -110,7 +106,7 @@ Still to improve later:
 - improve form positioning and keyboard behavior
 - refine confirmation copy and error states during polish
 
-### 4. Search And Tag Filtering - Functional Scaffold Complete
+### 4. Search And Tag Filtering - Complete
 
 Goal: support fast filtering without breaking spatial memory.
 
@@ -122,10 +118,10 @@ Completed:
 - hidden bookmarks are non-interactive
 - group cards remain visible while filtering
 
-Still to improve later:
+Polish candidates:
 - clearer active filter reset
 - empty-state messaging while filtered
-- polish spacing and visual hierarchy
+- improved spacing and visual hierarchy
 
 ### 5. Core Dashboard Visual System - In Progress
 
@@ -145,7 +141,7 @@ Still to do:
 - improve favicon fallback visuals
 - improve empty states
 
-### 6. Drag-And-Drop And Locking - Next Major Feature
+### 6. Drag-And-Drop And Locking - Complete
 
 Goal: allow intentional layout changes while preventing accidental movement.
 
@@ -162,14 +158,24 @@ Implementation slices:
 - persist every order change
 - add a clear unlocked visual state
 
-Done when:
+Completed:
 - no dragging happens while locked
 - groups reorder while unlocked
 - bookmarks reorder within groups while unlocked
 - bookmarks move between groups while unlocked
 - all order changes persist after refresh/new tab
+- group drag-and-drop is smooth and stable
+- same-group bookmark drag-and-drop is smooth and stable
+- cross-group bookmark drag-and-drop previews the target slot continuously and commits the previewed state on release
+- dragging outside groups no longer crashes or loses data
 
-### 7. Export And Import Backup
+Implementation note:
+- `dnd-kit` is used for dragging.
+- Cross-group bookmark movement is previewed from pointer position during drag movement.
+- The final drop saves the already-previewed dashboard state instead of recomputing placement on release.
+- Conflicting row transforms are suppressed only after a bookmark crosses into another group, so the visual slot and saved order stay aligned.
+
+### 7. Export And Import Backup - Complete
 
 Goal: support reliable manual backup/restore.
 
@@ -199,9 +205,9 @@ Done when:
 
 Status:
 - implementation complete
-- awaiting end-to-end user verification in Chrome
+- user-tested in Chrome, except deliberately broken/non-JSON import was skipped for now
 
-### 8. Quick Save Shortcut
+### 8. Quick Save Shortcut - Complete
 
 Goal: save the current page quickly from anywhere in Chrome.
 
@@ -225,7 +231,7 @@ Done when:
 
 Status:
 - implementation complete
-- awaiting end-to-end user verification in Chrome
+- user-tested in Chrome
 
 ### 9. Polish And Hardening
 
@@ -256,6 +262,9 @@ Hardening:
 
 Continue with **9. Polish And Hardening**.
 
-After that:
-- README expansion
+Recommended order inside polish:
+1. UI/visual polish in small slices so drag behavior stays stable.
+2. Convert add/edit flows from top-of-page panels to compact popups.
+3. Run larger-dataset and edge-case testing.
+4. Expand README with install, build, usage, backup, and shortcut instructions.
 - hardening/dependency maintenance
