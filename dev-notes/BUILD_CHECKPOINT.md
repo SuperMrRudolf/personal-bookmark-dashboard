@@ -58,8 +58,9 @@ Phase 9 - Polish and hardening in progress
 - temporary drag-and-drop research notes were removed after the issue was fixed
 - add/edit group and bookmark forms now open as compact popup-style overlays instead of pushing the dashboard down
 - dashboard typography now uses bundled local `Outfit` font files instead of a runtime Google Fonts dependency
-- dashboard ships with a mixed local icon system: official Google Workspace assets where available, bundled local favicon copies for many common services, and favicon fallback for uncatalogued sites
-- a clean icon research handoff list now exists at `dev-notes/ICON_RESEARCH_TODO.md`
+- dashboard ships with a mixed local icon system: official Google Workspace assets where available, bundled local icons for many common services, and favicon fallback for uncatalogued sites
+- broken bundled icon files that were actually saved HTML/JS responses were removed so affected services fall back cleanly instead of showing broken mapped assets
+- local icon notes were cleaned up and renamed to `dev-notes/ICON_LIBRARY_STATUS.md`
 - privacy policy and Chrome Web Store listing notes are documented for release prep
 - deleted bookmarks and groups can be restored from a small undo toast immediately after deletion
 - search/tag sidebar can be toggled from a small right-side icon and scrolls independently when tag lists are long
@@ -104,7 +105,7 @@ Phase 9 - Polish and hardening in progress
 ```text
 dev-notes/
   BUILD_CHECKPOINT.md
-  ICON_RESEARCH_TODO.md
+  ICON_LIBRARY_STATUS.md
   MVP_BUILD_PHASES.md
   PRD.md
   STORE_LISTING_NOTES.md
