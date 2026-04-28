@@ -131,6 +131,7 @@ Goal: make the dashboard feel intentional, compact, and close to the desired Lum
 Current state:
 - functional dark scaffold exists
 - group cards, bookmark rows, toolbar, tags, and forms are present
+- unlocked grid edit mode now exists for stacked per-group inline bookmark editing
 - current look is not final
 
 Still to do:
@@ -138,6 +139,7 @@ Still to do:
 - compact bookmark rows further
 - improve typography, spacing, hover states, and card treatment
 - replace temporary top panels with small popups
+- keep refining grid edit popover placement and density from real-world usage
 - make desktop and mobile layouts feel deliberate
 - improve favicon fallback visuals
 - improve empty states

@@ -23,7 +23,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
+import { createPortal } from 'react-dom'
 import {
   clearQuickSaveDraft,
   createBookmark,
@@ -454,6 +461,334 @@ function BookmarkRow({
   )
 }
 
+type GridBookmarkField = 'name' | 'url' | 'tags'
+
+type GridBookmarkUpdate = {
+  name?: string
+  url?: string
+  tags?: string
+}
+
+type GridTagPickerPosition = {
+  left: number
+  top: number
+}
+
+type GridGroupContentProps = {
+  group: BookmarkGroup
+  groupBookmarks: Bookmark[]
+  search: string
+  selectedTags: string[]
+  tagFilterMode: TagFilterMode
+  onCloseTagPicker: () => void
+  onDeleteBookmark: (bookmark: Bookmark) => void
+  onEditBookmarkField: (bookmark: Bookmark, updates: GridBookmarkUpdate) => void
+  onEditGroup: (group: BookmarkGroup) => void
+  onOpenGroupBookmarks: (bookmarks: Bookmark[]) => void
+  onOpenTagPicker: (bookmarkId: string, inputElement: HTMLInputElement) => void
+}
+
+function DragGripIcon() {
+  return (
+    <svg aria-hidden="true" className="drag-grip-icon" fill="none" viewBox="0 0 24 24">
+      <circle cx="9" cy="6" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="18" r="1" />
+      <circle cx="15" cy="6" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="18" r="1" />
+    </svg>
+  )
+}
+
+function GridBookmarkCellInput({
+  bookmark,
+  field,
+  onActivate,
+  placeholder,
+  type = 'text',
+  value,
+  onCommit,
+  onEscape,
+}: {
+  bookmark: Bookmark
+  field: GridBookmarkField
+  onActivate?: (inputElement: HTMLInputElement) => void
+  placeholder: string
+  type?: string
+  value: string
+  onCommit: (bookmark: Bookmark, updates: GridBookmarkUpdate) => void
+  onEscape?: () => void
+}) {
+  const [draftValue, setDraftValue] = useState(value)
+
+  useEffect(() => {
+    setDraftValue(value)
+  }, [value])
+
+  function commitValue(nextValue: string) {
+    if (nextValue === value) {
+      return
+    }
+
+    onCommit(bookmark, { [field]: nextValue })
+  }
+
+  return (
+    <input
+      className="grid-edit-input"
+      type={type}
+      value={draftValue}
+      placeholder={placeholder}
+      onBlur={() => commitValue(draftValue)}
+      onChange={(event) => setDraftValue(event.target.value)}
+      onClick={(event) => onActivate?.(event.currentTarget)}
+      onFocus={(event) => onActivate?.(event.currentTarget)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur()
+          return
+        }
+
+        if (event.key === 'Escape') {
+          setDraftValue(value)
+          onEscape?.()
+          event.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
+
+function SortableGridBookmarkRow({
+  bookmark,
+  search,
+  selectedTags,
+  tagFilterMode,
+  onCloseTagPicker,
+  onDeleteBookmark,
+  onEditBookmarkField,
+  onOpenTagPicker,
+}: {
+  bookmark: Bookmark
+  search: string
+  selectedTags: string[]
+  tagFilterMode: TagFilterMode
+  onCloseTagPicker: () => void
+  onDeleteBookmark: (bookmark: Bookmark) => void
+  onEditBookmarkField: (bookmark: Bookmark, updates: GridBookmarkUpdate) => void
+  onOpenTagPicker: (bookmarkId: string, inputElement: HTMLInputElement) => void
+}) {
+  const visible = matchesBookmark(search, selectedTags, tagFilterMode, bookmark)
+  const { src, fallbackSrc } = getBookmarkIconSources(bookmark.url)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: bookmark.id,
+    disabled: !visible,
+    data: {
+      bookmark,
+      type: 'bookmark',
+    },
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <div
+      className={`grid-edit-row ${visible ? '' : 'is-hidden'} ${visible ? 'is-sortable' : ''} ${isDragging ? 'is-dragging' : ''}`}
+      data-bookmark-id={bookmark.id}
+      ref={setNodeRef}
+      style={style}
+    >
+      <button
+        className="grid-drag-handle"
+        type="button"
+        aria-label={`Drag ${bookmark.name}`}
+        {...attributes}
+        tabIndex={visible ? 0 : -1}
+        {...listeners}
+      >
+        <DragGripIcon />
+      </button>
+
+      <div className="grid-name-cell">
+        <img
+          className="grid-bookmark-favicon"
+          alt=""
+          src={src}
+          onError={(event) => {
+            if (event.currentTarget.src === fallbackSrc) {
+              return
+            }
+
+            event.currentTarget.onerror = null
+            event.currentTarget.src = fallbackSrc
+          }}
+        />
+
+        <GridBookmarkCellInput
+          bookmark={bookmark}
+          field="name"
+          placeholder="Bookmark name"
+          value={bookmark.name}
+          onCommit={onEditBookmarkField}
+        />
+      </div>
+
+      <GridBookmarkCellInput
+        bookmark={bookmark}
+        field="url"
+        placeholder="https://example.com"
+        type="url"
+        value={bookmark.url}
+        onCommit={onEditBookmarkField}
+      />
+
+      <div className="grid-tag-cell">
+        <GridBookmarkCellInput
+          bookmark={bookmark}
+          field="tags"
+          onActivate={(inputElement) => onOpenTagPicker(bookmark.id, inputElement)}
+          onEscape={onCloseTagPicker}
+          placeholder=""
+          value={formatTags(bookmark.tags)}
+          onCommit={onEditBookmarkField}
+        />
+      </div>
+
+      <button
+        className="grid-delete-button"
+        type="button"
+        aria-label={`Delete ${bookmark.name}`}
+        tabIndex={visible ? 0 : -1}
+        onClick={() => {
+          onCloseTagPicker()
+          onDeleteBookmark(bookmark)
+        }}
+      >
+        <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+          <path d="M9 4h6" />
+          <path d="M4 7h16" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+          <path d="M6 7l1 14h10l1-14" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function GridGroupContent({
+  group,
+  groupBookmarks,
+  search,
+  selectedTags,
+  tagFilterMode,
+  onCloseTagPicker,
+  onDeleteBookmark,
+  onEditBookmarkField,
+  onEditGroup,
+  onOpenGroupBookmarks,
+  onOpenTagPicker,
+}: GridGroupContentProps) {
+  return (
+    <>
+      <div className="group-header grid-edit-group-header">
+        <div className="group-title">
+          <h2>{group.name}</h2>
+        </div>
+        <div className="group-actions">
+          {groupBookmarks.length > 0 ? (
+            <button
+              className="open-all-button"
+              type="button"
+              onClick={() => onOpenGroupBookmarks(groupBookmarks)}
+            >
+              Open all
+            </button>
+          ) : null}
+          <button className="group-edit-button" type="button" onClick={() => onEditGroup(group)}>
+            Edit group
+          </button>
+        </div>
+      </div>
+
+      <SortableContext
+        items={groupBookmarks.map((bookmark) => bookmark.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="grid-edit-table">
+          <div className="grid-edit-row grid-edit-head" aria-hidden="true">
+            <span />
+            <span>Name</span>
+            <span>URL</span>
+            <span>Tags</span>
+            <span />
+          </div>
+
+          {groupBookmarks.map((bookmark) => (
+            <SortableGridBookmarkRow
+              bookmark={bookmark}
+              key={bookmark.id}
+              onCloseTagPicker={onCloseTagPicker}
+              onDeleteBookmark={onDeleteBookmark}
+              onEditBookmarkField={onEditBookmarkField}
+              onOpenTagPicker={onOpenTagPicker}
+              search={search}
+              selectedTags={selectedTags}
+              tagFilterMode={tagFilterMode}
+            />
+          ))}
+
+          {groupBookmarks.length === 0 ? (
+            <p className="group-empty">No bookmarks yet.</p>
+          ) : null}
+        </div>
+      </SortableContext>
+    </>
+  )
+}
+
+type SortableGridGroupSectionProps = GridGroupContentProps & {
+  groupSortingDisabled: boolean
+}
+
+function SortableGridGroupSection(props: SortableGridGroupSectionProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.group.id,
+    disabled: props.groupSortingDisabled,
+    data: {
+      group: props.group,
+      type: 'group',
+    },
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <section
+      className={`group-card grid-edit-group ${props.groupSortingDisabled ? '' : 'is-sortable'} ${isDragging ? 'is-dragging' : ''}`}
+      data-group-id={props.group.id}
+      ref={setNodeRef}
+      style={style}
+    >
+      <button
+        className="grid-group-drag-handle"
+        type="button"
+        aria-label={`Drag ${props.group.name}`}
+        {...attributes}
+        {...listeners}
+      >
+        <DragGripIcon />
+      </button>
+      <GridGroupContent {...props} />
+    </section>
+  )
+}
+
 function SortableBookmarkRow({
   bookmark,
   locked,
@@ -508,6 +843,9 @@ export function App() {
   const [isBookmarkFormOpen, setIsBookmarkFormOpen] = useState(false)
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null)
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
+  const [isGridEditMode, setIsGridEditMode] = useState(false)
+  const [activeTagPickerBookmarkId, setActiveTagPickerBookmarkId] = useState<string | null>(null)
+  const [tagPickerPosition, setTagPickerPosition] = useState<GridTagPickerPosition | null>(null)
   const [groupName, setGroupName] = useState('')
   const [bookmarkGroupName, setBookmarkGroupName] = useState('')
   const [bookmarkName, setBookmarkName] = useState('')
@@ -573,6 +911,39 @@ export function App() {
 
     return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [isActionMenuOpen])
+
+  useEffect(() => {
+    if (!dashboardData?.settings.locked) {
+      return
+    }
+
+    setIsGridEditMode(false)
+    setActiveTagPickerBookmarkId(null)
+    setTagPickerPosition(null)
+  }, [dashboardData?.settings.locked])
+
+  useEffect(() => {
+    if (!activeTagPickerBookmarkId) {
+      return
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target
+
+      if (
+        target instanceof Element &&
+        (target.closest('.grid-tag-cell') || target.closest('.grid-tag-picker'))
+      ) {
+        return
+      }
+
+      closeGridTagPicker()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [activeTagPickerBookmarkId])
 
   useEffect(() => {
     if (!dashboardData || !isQuickSaveIntent) {
@@ -887,6 +1258,93 @@ export function App() {
     }
   }
 
+  function closeGridTagPicker() {
+    setActiveTagPickerBookmarkId(null)
+    setTagPickerPosition(null)
+  }
+
+  function openGridTagPicker(bookmarkId: string, inputElement: HTMLInputElement) {
+    const rect = inputElement.getBoundingClientRect()
+    const pickerWidth = Math.min(380, Math.max(240, window.innerWidth - 32))
+    const left = Math.min(
+      Math.max(16, rect.left + 40),
+      Math.max(16, window.innerWidth - pickerWidth - 16),
+    )
+    const top = Math.min(rect.bottom, Math.max(16, window.innerHeight - 280))
+
+    setActiveTagPickerBookmarkId(bookmarkId)
+    setTagPickerPosition({ left, top })
+  }
+
+  async function handleGridBookmarkFieldUpdate(bookmark: Bookmark, updates: GridBookmarkUpdate) {
+    const trimmedUrl = updates.url?.trim()
+
+    if (updates.url !== undefined && !trimmedUrl) {
+      setStatusMessage('Bookmark URL is required.')
+      return
+    }
+
+    try {
+      const nextData = await updateBookmark(bookmark.id, {
+        ...(updates.name !== undefined ? { name: updates.name } : {}),
+        ...(updates.url !== undefined ? { url: updates.url } : {}),
+        ...(updates.tags !== undefined ? { tags: updates.tags.split(',') } : {}),
+      })
+
+      latestDashboardDataRef.current = nextData
+      setDashboardData(nextData)
+      setStatusMessage(null)
+    } catch {
+      setStatusMessage('Bookmark update failed.')
+    }
+  }
+
+  async function handleGridBookmarkDelete(bookmark: Bookmark) {
+    const restoreData = dashboardData
+
+    try {
+      const nextData = await deleteBookmark(bookmark.id)
+
+      latestDashboardDataRef.current = nextData
+      setDashboardData(nextData)
+      if (activeTagPickerBookmarkId === bookmark.id) {
+        closeGridTagPicker()
+      }
+
+      if (restoreData) {
+        showUndoDeleteToast(`Deleted ${bookmark.name}.`, restoreData)
+      }
+    } catch {
+      setStatusMessage('Bookmark delete failed.')
+    }
+  }
+
+  async function handleGridTagToggle(tag: string) {
+    if (!activeTagPickerBookmarkId) {
+      return
+    }
+
+    const activeBookmark = bookmarks.find((bookmark) => bookmark.id === activeTagPickerBookmarkId)
+
+    if (!activeBookmark) {
+      closeGridTagPicker()
+      return
+    }
+
+    const nextTags = activeBookmark.tags.includes(tag)
+      ? activeBookmark.tags.filter((currentTag) => currentTag !== tag)
+      : [...activeBookmark.tags, tag]
+
+    try {
+      const nextData = await updateBookmark(activeBookmark.id, { tags: nextTags })
+
+      latestDashboardDataRef.current = nextData
+      setDashboardData(nextData)
+    } catch {
+      setStatusMessage('Tag update failed.')
+    }
+  }
+
   function openGroupBookmarks(groupBookmarks: Bookmark[]) {
     groupBookmarks.forEach((bookmark) => {
       const url = getSafeBookmarkUrl(bookmark.url)
@@ -1067,7 +1525,9 @@ export function App() {
     pointerY: number,
   ) {
     const rowElements = Array.from(
-      targetGroupElement.querySelectorAll<HTMLElement>('.bookmark-row[data-bookmark-id]:not(.is-hidden)'),
+      targetGroupElement.querySelectorAll<HTMLElement>(
+        '.bookmark-row[data-bookmark-id]:not(.is-hidden), .grid-edit-row[data-bookmark-id]:not(.is-hidden)',
+      ),
     ).filter((rowElement) => rowElement.dataset.bookmarkId !== activeBookmarkId)
 
     return rowElements.findIndex((rowElement) => {
@@ -1307,6 +1767,9 @@ export function App() {
   const allTags = Array.from(tagCounts.keys()).sort(
     (left, right) => (tagCounts.get(right) ?? 0) - (tagCounts.get(left) ?? 0) || left.localeCompare(right),
   )
+  const activeTagPickerBookmark = activeTagPickerBookmarkId
+    ? bookmarks.find((bookmark) => bookmark.id === activeTagPickerBookmarkId)
+    : null
 
   return (
     <div className="shell">
@@ -1324,6 +1787,18 @@ export function App() {
               <span className="lock-switch-thumb" />
             </span>
           </button>
+          {!locked && dashboardData ? (
+            <button
+              className={`grid-edit-toggle ${isGridEditMode ? 'is-active' : ''}`}
+              type="button"
+              onClick={() => {
+                setIsGridEditMode((isEnabled) => !isEnabled)
+                closeGridTagPicker()
+              }}
+            >
+              {isGridEditMode ? 'Exit Grid View' : 'Edit in Grid View'}
+            </button>
+          ) : null}
         </div>
 
         <div className="hero-actions">
@@ -1589,14 +2064,39 @@ export function App() {
             onDragStart={handleDragStart}
             sensors={sensors}
           >
-            <SortableContext items={groups.map((group) => group.id)} strategy={rectSortingStrategy}>
-              <main className="group-grid">
+            <SortableContext
+              items={groups.map((group) => group.id)}
+              strategy={isGridEditMode ? verticalListSortingStrategy : rectSortingStrategy}
+            >
+              <main
+                className={isGridEditMode ? 'grid-edit-board' : 'group-grid'}
+              >
                 {groups.map((group) => {
                   const groupBookmarks = bookmarks
                     .filter((bookmark) => bookmark.groupId === group.id)
                     .sort((left, right) => left.order - right.order)
 
-                  return (
+                  return isGridEditMode ? (
+                    <SortableGridGroupSection
+                      group={group}
+                      groupBookmarks={groupBookmarks}
+                      groupSortingDisabled={Boolean(draggingBookmarkId)}
+                      key={group.id}
+                      onCloseTagPicker={closeGridTagPicker}
+                      onDeleteBookmark={(bookmark) => {
+                        void handleGridBookmarkDelete(bookmark)
+                      }}
+                      onEditBookmarkField={(bookmark, updates) => {
+                        void handleGridBookmarkFieldUpdate(bookmark, updates)
+                      }}
+                      onEditGroup={openEditGroup}
+                      onOpenGroupBookmarks={openGroupBookmarks}
+                      onOpenTagPicker={openGridTagPicker}
+                      search={search}
+                      selectedTags={selectedTags}
+                      tagFilterMode={tagFilterMode}
+                    />
+                  ) : (
                     <SortableGroupCard
                       group={group}
                       bookmarkSortingDisabled={Boolean(draggingGroupId)}
@@ -1731,6 +2231,39 @@ export function App() {
           </div>
         </div>
       </aside>
+
+      {activeTagPickerBookmark && tagPickerPosition && allTags.length > 0
+        ? createPortal(
+            <div
+              className="grid-tag-picker"
+              role="dialog"
+              aria-label="Existing tags"
+              style={{
+                left: tagPickerPosition.left,
+                top: tagPickerPosition.top,
+              }}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              <div className="grid-tag-picker-list">
+                {allTags.map((tag) => (
+                  <button
+                    key={tag}
+                    className={`tag-chip tag-picker-chip ${
+                      activeTagPickerBookmark.tags.includes(tag) ? 'is-active' : ''
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      void handleGridTagToggle(tag)
+                    }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {undoDeleteToast ? (
         <div className="undo-toast" role="status">

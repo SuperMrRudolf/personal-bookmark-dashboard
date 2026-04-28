@@ -106,7 +106,9 @@ a {
 
 .hero-lock-control {
   display: flex;
+  gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .status-note {
@@ -128,6 +130,7 @@ a {
 
 .lock-button,
 .lock-switch,
+.grid-edit-toggle,
 .secondary-button,
 .danger-button,
 .ghost-button,
@@ -148,6 +151,7 @@ a {
 
 .lock-button:hover,
 .secondary-button:hover,
+.grid-edit-toggle:hover,
 .danger-button:hover,
 .ghost-button:hover,
 .group-add-button:hover,
@@ -174,6 +178,18 @@ a {
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.grid-edit-toggle {
+  padding: 8px 12px;
+  color: var(--text-main);
+  border: 1px solid rgba(243, 191, 116, 0.18);
+  background: rgba(243, 191, 116, 0.08);
+}
+
+.grid-edit-toggle.is-active {
+  color: #081018;
+  background: var(--accent-strong);
 }
 
 .lock-switch-track {
@@ -542,6 +558,14 @@ a {
   column-gap: 18px;
 }
 
+.grid-edit-board {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
 .loading-state {
   padding: 28px;
   border: 1px solid var(--line);
@@ -581,6 +605,58 @@ a {
 .group-card.is-dragging {
   opacity: 0;
   box-shadow: none;
+}
+
+.grid-edit-group {
+  position: relative;
+  gap: 16px;
+  margin: 0;
+  padding: 18px 18px 20px 48px;
+  break-inside: auto;
+  overflow: visible;
+}
+
+.grid-edit-group-header {
+  min-height: 34px;
+}
+
+.grid-group-drag-handle,
+.grid-drag-handle,
+.grid-delete-button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.grid-group-drag-handle {
+  position: absolute;
+  top: 20px;
+  left: 16px;
+  width: 28px;
+  height: 28px;
+  cursor: grab;
+  border-radius: 8px;
+}
+
+.grid-group-drag-handle:active,
+.grid-drag-handle:active {
+  cursor: grabbing;
+}
+
+.grid-group-drag-handle:hover,
+.grid-group-drag-handle:focus-visible,
+.grid-drag-handle:hover,
+.grid-drag-handle:focus-visible {
+  color: var(--text-main);
+  background: rgba(156, 199, 255, 0.08);
+}
+
+.drag-grip-icon {
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
 }
 
 .group-drag-preview {
@@ -645,6 +721,149 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0px;
+}
+
+.grid-edit-table {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-width: 760px;
+  overflow: visible;
+}
+
+.grid-edit-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(160px, 0.9fr) minmax(240px, 1.35fr) minmax(180px, 0.95fr) 38px;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
+  will-change: transform;
+}
+
+.grid-edit-head {
+  min-height: 28px;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.grid-edit-head span {
+  padding: 0 8px;
+}
+
+.grid-edit-row.is-sortable {
+  touch-action: none;
+}
+
+.grid-edit-row.is-dragging {
+  opacity: 0;
+}
+
+.grid-edit-row.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.grid-edit-row:not(.grid-edit-head):hover {
+  border-color: rgba(156, 199, 255, 0.18);
+  background: rgba(156, 199, 255, 0.06);
+}
+
+.grid-drag-handle {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: grab;
+}
+
+.grid-name-cell {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.grid-bookmark-favicon {
+  width: 18px;
+  height: 18px;
+  justify-self: center;
+  border-radius: 4px;
+}
+
+.grid-edit-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.grid-edit-input:focus {
+  border-color: rgba(124, 224, 195, 0.28);
+  box-shadow: 0 0 0 2px rgba(124, 224, 195, 0.08);
+  outline: none;
+}
+
+.grid-tag-cell {
+  position: relative;
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.grid-tag-picker {
+  position: fixed;
+  z-index: 100;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(280px, calc(100vh - 32px));
+  padding: 12px;
+  border: 1px solid rgba(182, 215, 255, 0.2);
+  border-radius: 10px;
+  background: #162032;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.54);
+  pointer-events: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.grid-tag-picker-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+}
+
+.grid-delete-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.grid-delete-button:hover,
+.grid-delete-button:focus-visible {
+  color: var(--danger);
+  background: rgba(255, 159, 159, 0.1);
+}
+
+.grid-delete-button svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .bookmark-row {
@@ -881,6 +1100,10 @@ a {
 
   .group-grid {
     column-count: 1;
+  }
+
+  .grid-edit-group {
+    min-width: 820px;
   }
 
   .quick-form {

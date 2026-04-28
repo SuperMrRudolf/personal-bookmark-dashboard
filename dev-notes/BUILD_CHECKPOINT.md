@@ -68,6 +68,10 @@ Phase 9 - Polish and hardening in progress
 - sidebar now opens from the right side, with the search toggle aligned to that right-side control area
 - top-right action menu now closes automatically when clicking away
 - lock/unlock label now appears before the switch track for the final preferred nav layout
+- unlocked mode now exposes an `Edit in Grid View` toggle for stacked per-group bookmark editing
+- grid edit view supports inline bookmark name, URL, and tag editing with bookmark favicons shown before the name input
+- grid edit view includes row delete actions, inline drag handles, and cross-group bookmark dragging while unlocked
+- grid tag editing now uses a single opaque popover picker anchored to the active tags input, with wrapped chips and scrolling for larger tag sets
 - dependency audit currently reports 0 vulnerabilities after a scoped Rollup override for CRXJS
 - production build is verified
 - unpacked extension loads successfully in Chrome
@@ -137,6 +141,7 @@ src/
 ## What still needs doing
 - refine the LumiList-inspired visual design
 - refine compact popup placement, focus behavior, and visual polish
+- keep tuning grid edit spacing and popover placement against larger real bookmark datasets
 - replace remaining fallback/runtime icons with better local official assets where possible
 - run a final larger-dataset drag/search/import/export pass
 - expand the README further once feature-level setup and usage details exist
