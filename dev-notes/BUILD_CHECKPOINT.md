@@ -64,6 +64,9 @@ Phase 9 - Polish and hardening in progress
 - deleted bookmarks and groups can be restored from a small undo toast immediately after deletion
 - search/tag sidebar can be toggled from a small right-side icon and scrolls independently when tag lists are long
 - top nav no longer shows a title; the lock/unlock switch sits on the left, with add/menu actions on the right
+- sidebar now opens from the right side, with the search toggle aligned to that right-side control area
+- top-right action menu now closes automatically when clicking away
+- lock/unlock label now appears before the switch track for the final preferred nav layout
 - dependency audit currently reports 0 vulnerabilities after a scoped Rollup override for CRXJS
 - production build is verified
 - unpacked extension loads successfully in Chrome

@@ -522,6 +522,7 @@ export function App() {
   const dragStartDataRef = useRef<DashboardData | null>(null)
   const latestDashboardDataRef = useRef<DashboardData | null>(null)
   const importInputRef = useRef<HTMLInputElement | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -552,6 +553,26 @@ export function App() {
 
     return () => window.clearTimeout(timeoutId)
   }, [undoDeleteToast])
+
+  useEffect(() => {
+    if (!isActionMenuOpen) {
+      return
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target
+
+      if (target instanceof Node && actionMenuRef.current?.contains(target)) {
+        return
+      }
+
+      setIsActionMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [isActionMenuOpen])
 
   useEffect(() => {
     if (!dashboardData || !isQuickSaveIntent) {
@@ -1332,7 +1353,7 @@ export function App() {
             Add bookmark
           </button>
 
-          <div className="action-menu">
+          <div className="action-menu" ref={actionMenuRef}>
             <button
               className="menu-button"
               type="button"
@@ -1361,7 +1382,7 @@ export function App() {
                   Import JSON
                 </button>
                 <button type="button" onClick={openShortcutSettings}>
-                  Change quick-save shortcut
+                  Shortcuts
                 </button>
               </div>
             ) : null}
