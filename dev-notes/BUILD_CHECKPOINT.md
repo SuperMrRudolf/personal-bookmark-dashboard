@@ -24,6 +24,7 @@ Phase 9 - Polish and hardening in progress
 - lock/unlock is scoped to layout movement only; add/edit/delete actions remain available while locked
 - dashboard now loads groups and bookmarks from storage instead of mock data
 - starter search and tag filter shell works against stored bookmarks
+- tag filtering supports selecting multiple tags at once with an All/Any match toggle; `All tags` clears the selected tag filters
 - storage helper functions exist for group create/update/delete
 - storage helper functions exist for bookmark create/update/delete
 - deleting a group also deletes all bookmarks inside it after confirmation
@@ -55,6 +56,10 @@ Phase 9 - Polish and hardening in progress
 - quick-save requires group selection before saving
 - extension icon assets are present and referenced by the manifest
 - temporary drag-and-drop research notes were removed after the issue was fixed
+- add/edit group and bookmark forms now open as compact popup-style overlays instead of pushing the dashboard down
+- dashboard typography now uses bundled local `Outfit` font files instead of a runtime Google Fonts dependency
+- dashboard ships with a mixed local icon system: official Google Workspace assets where available, bundled local favicon copies for many common services, and favicon fallback for uncatalogued sites
+- a clean icon research handoff list now exists at `dev-notes/ICON_RESEARCH_TODO.md`
 - production build is verified
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
@@ -91,6 +96,7 @@ Phase 9 - Polish and hardening in progress
 ```text
 dev-notes/
   BUILD_CHECKPOINT.md
+  ICON_RESEARCH_TODO.md
   MVP_BUILD_PHASES.md
   PRD.md
 
@@ -119,7 +125,8 @@ src/
 
 ## What still needs doing
 - refine the LumiList-inspired visual design
-- convert top-of-page add/edit forms into compact popups/anchored panels
+- refine compact popup placement, focus behavior, and visual polish
+- replace remaining fallback/runtime icons with better local official assets where possible
 - run a final larger-dataset drag/search/import/export pass
 - review dependency audit warning before release: `npm audit` currently reports high-severity Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`; do not use `npm audit fix --force` casually because npm marks the available fix as a breaking CRXJS change
 - expand the README further once feature-level setup and usage details exist

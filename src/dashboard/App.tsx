@@ -1,3 +1,6 @@
+import '@fontsource/outfit/400.css'
+import '@fontsource/outfit/500.css'
+import '@fontsource/outfit/700.css'
 import {
   closestCenter,
   DndContext,
@@ -37,13 +40,24 @@ import {
 } from '../lib/storage'
 import type { Bookmark, BookmarkGroup, DashboardData } from '../lib/types'
 
-function matchesBookmark(query: string, selectedTag: string | null, bookmark: Bookmark) {
+type TagFilterMode = 'and' | 'or'
+
+function matchesBookmark(
+  query: string,
+  selectedTags: string[],
+  tagFilterMode: TagFilterMode,
+  bookmark: Bookmark,
+) {
   const normalizedQuery = query.trim().toLowerCase()
   const queryMatch =
     normalizedQuery.length === 0 ||
     bookmark.name.toLowerCase().includes(normalizedQuery) ||
     bookmark.url.toLowerCase().includes(normalizedQuery)
-  const tagMatch = !selectedTag || bookmark.tags.includes(selectedTag)
+  const tagMatch =
+    selectedTags.length === 0 ||
+    (tagFilterMode === 'and'
+      ? selectedTags.every((tag) => bookmark.tags.includes(tag))
+      : selectedTags.some((tag) => bookmark.tags.includes(tag)))
 
   return queryMatch && tagMatch
 }
@@ -54,6 +68,126 @@ function getDisplayHostname(url: string) {
   } catch {
     return url
   }
+}
+
+function buildFaviconUrl(domainOrUrl: string) {
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domainOrUrl)}&sz=64`
+}
+
+function getLocalAssetUrl(path: string) {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+    return chrome.runtime.getURL(path)
+  }
+
+  return `/${path}`
+}
+
+type BookmarkIconRule = {
+  hostname: string
+  pathnameStartsWith?: string
+  iconSrc: string
+}
+
+const bookmarkIconRules: BookmarkIconRule[] = [
+  { hostname: 'mail.google.com', iconSrc: getLocalAssetUrl('app-icons/gmail.png') },
+  { hostname: 'drive.google.com', iconSrc: getLocalAssetUrl('app-icons/google-drive.png') },
+  { hostname: 'photos.google.com', iconSrc: getLocalAssetUrl('app-icons/google-photos.ico') },
+  { hostname: 'calendar.google.com', iconSrc: getLocalAssetUrl('app-icons/google-calendar.png') },
+  { hostname: 'keep.google.com', iconSrc: getLocalAssetUrl('app-icons/google-keep.png') },
+  { hostname: 'meet.google.com', iconSrc: getLocalAssetUrl('app-icons/google-meet.png') },
+  { hostname: 'chat.google.com', iconSrc: buildFaviconUrl('chat.google.com') },
+  { hostname: 'docs.google.com', pathnameStartsWith: '/spreadsheets', iconSrc: getLocalAssetUrl('app-icons/google-sheets.png') },
+  { hostname: 'docs.google.com', pathnameStartsWith: '/document', iconSrc: getLocalAssetUrl('app-icons/google-docs.png') },
+  { hostname: 'docs.google.com', pathnameStartsWith: '/presentation', iconSrc: getLocalAssetUrl('app-icons/google-slides.png') },
+  { hostname: 'docs.google.com', pathnameStartsWith: '/forms', iconSrc: getLocalAssetUrl('app-icons/google-forms.png') },
+  { hostname: 'gemini.google.com', iconSrc: buildFaviconUrl('gemini.google.com') },
+  { hostname: 'chat.openai.com', iconSrc: buildFaviconUrl('chat.openai.com') },
+  { hostname: 'chatgpt.com', iconSrc: buildFaviconUrl('chat.openai.com') },
+  { hostname: 'openai.com', iconSrc: buildFaviconUrl('openai.com') },
+  { hostname: 'www.youtube.com', iconSrc: getLocalAssetUrl('app-icons/youtube.ico') },
+  { hostname: 'music.youtube.com', iconSrc: getLocalAssetUrl('app-icons/youtube-music.ico') },
+  { hostname: 'www.whatsapp.com', iconSrc: getLocalAssetUrl('app-icons/whatsapp.ico') },
+  { hostname: 'web.whatsapp.com', iconSrc: getLocalAssetUrl('app-icons/whatsapp-web.ico') },
+  { hostname: 'telegram.org', iconSrc: getLocalAssetUrl('app-icons/telegram.ico') },
+  { hostname: 'desktop.telegram.org', iconSrc: getLocalAssetUrl('app-icons/telegram-desktop.ico') },
+  { hostname: 'signal.org', iconSrc: buildFaviconUrl('signal.org') },
+  { hostname: 'www.wechat.com', iconSrc: getLocalAssetUrl('app-icons/wechat.ico') },
+  { hostname: 'web.wechat.com', iconSrc: getLocalAssetUrl('app-icons/wechat-web.ico') },
+  { hostname: 'www.twitch.tv', iconSrc: getLocalAssetUrl('app-icons/twitch.ico') },
+  { hostname: 'www.skype.com', iconSrc: getLocalAssetUrl('app-icons/skype.ico') },
+  { hostname: 'teams.microsoft.com', iconSrc: getLocalAssetUrl('app-icons/microsoft-teams.ico') },
+  { hostname: 'www.tumblr.com', iconSrc: getLocalAssetUrl('app-icons/tumblr.ico') },
+  { hostname: 'www.quora.com', iconSrc: getLocalAssetUrl('app-icons/quora.ico') },
+  { hostname: 'discord.com', iconSrc: buildFaviconUrl('discord.com') },
+  { hostname: 'slack.com', iconSrc: getLocalAssetUrl('app-icons/slack.ico') },
+  { hostname: 'www.pinterest.com', iconSrc: getLocalAssetUrl('app-icons/pinterest.ico') },
+  { hostname: 'www.tiktok.com', iconSrc: getLocalAssetUrl('app-icons/tiktok.ico') },
+  { hostname: 'www.snapchat.com', iconSrc: getLocalAssetUrl('app-icons/snapchat.ico') },
+  { hostname: 'reddit.com', iconSrc: getLocalAssetUrl('app-icons/reddit.ico') },
+  { hostname: 'www.reddit.com', iconSrc: getLocalAssetUrl('app-icons/reddit.ico') },
+  { hostname: 'www.linkedin.com', iconSrc: getLocalAssetUrl('app-icons/linkedin.ico') },
+  { hostname: 'www.facebook.com', iconSrc: getLocalAssetUrl('app-icons/facebook.ico') },
+  { hostname: 'www.instagram.com', iconSrc: getLocalAssetUrl('app-icons/instagram.ico') },
+  { hostname: 'twitter.com', iconSrc: getLocalAssetUrl('app-icons/twitter.ico') },
+  { hostname: 'x.com', iconSrc: getLocalAssetUrl('app-icons/twitter.ico') },
+  { hostname: 'www.messenger.com', iconSrc: buildFaviconUrl('www.messenger.com') },
+  { hostname: 'www.threads.net', iconSrc: getLocalAssetUrl('app-icons/threads.ico') },
+  { hostname: 'zoom.us', iconSrc: getLocalAssetUrl('app-icons/zoom.ico') },
+  { hostname: 'claude.ai', iconSrc: getLocalAssetUrl('app-icons/claude.ico') },
+  { hostname: 'www.midjourney.com', iconSrc: buildFaviconUrl('www.midjourney.com') },
+  { hostname: 'www.perplexity.ai', iconSrc: getLocalAssetUrl('app-icons/perplexity.ico') },
+  { hostname: 'perplexity.ai', iconSrc: getLocalAssetUrl('app-icons/perplexity.ico') },
+  { hostname: 'beta.character.ai', iconSrc: getLocalAssetUrl('app-icons/character-ai.ico') },
+  { hostname: 'stability.ai', iconSrc: getLocalAssetUrl('app-icons/stability-ai.ico') },
+  { hostname: 'huggingface.co', iconSrc: getLocalAssetUrl('app-icons/hugging-face.ico') },
+  { hostname: 'cohere.com', iconSrc: getLocalAssetUrl('app-icons/cohere.ico') },
+  { hostname: 'www.jasper.ai', iconSrc: buildFaviconUrl('www.jasper.ai') },
+  { hostname: 'www.copy.ai', iconSrc: buildFaviconUrl('www.copy.ai') },
+  { hostname: 'mistral.ai', iconSrc: getLocalAssetUrl('app-icons/mistral-ai.ico') },
+  { hostname: 'replika.ai', iconSrc: getLocalAssetUrl('app-icons/replika.ico') },
+  { hostname: 'x.ai', iconSrc: getLocalAssetUrl('app-icons/xai.ico') },
+  { hostname: 'www.ibm.com', pathnameStartsWith: '/watson', iconSrc: getLocalAssetUrl('app-icons/ibm-watson.ico') },
+  { hostname: 'lex.page', iconSrc: getLocalAssetUrl('app-icons/lex.ico') },
+  { hostname: 'app.writesonic.com', iconSrc: getLocalAssetUrl('app-icons/chatsonic.ico') },
+  { hostname: 'www.deepl.com', iconSrc: getLocalAssetUrl('app-icons/deepl.ico') },
+  { hostname: 'poe.com', iconSrc: getLocalAssetUrl('app-icons/poe.ico') },
+  { hostname: 'open-assistant.io', iconSrc: buildFaviconUrl('open-assistant.io') },
+  { hostname: 'runwayml.com', iconSrc: buildFaviconUrl('runwayml.com') },
+  { hostname: 'firefly.adobe.com', iconSrc: buildFaviconUrl('firefly.adobe.com') },
+  { hostname: 'www.notion.so', iconSrc: buildFaviconUrl('www.notion.so') },
+  { hostname: 'www.figma.com', iconSrc: buildFaviconUrl('www.figma.com') },
+  { hostname: 'miro.com', iconSrc: buildFaviconUrl('miro.com') },
+  { hostname: 'trello.com', iconSrc: buildFaviconUrl('trello.com') },
+  { hostname: 'asana.com', iconSrc: buildFaviconUrl('asana.com') },
+  { hostname: 'github.com', iconSrc: buildFaviconUrl('github.com') },
+  { hostname: 'gitlab.com', iconSrc: buildFaviconUrl('gitlab.com') },
+  { hostname: 'bitbucket.org', iconSrc: buildFaviconUrl('bitbucket.org') },
+]
+
+function getBookmarkIconSources(url: string) {
+  const fallbackSrc = buildFaviconUrl(getDisplayHostname(url))
+
+  try {
+    const parsedUrl = new URL(url)
+    const hostname = parsedUrl.hostname.toLowerCase()
+    const pathname = parsedUrl.pathname.toLowerCase()
+    const matchedRule = bookmarkIconRules.find(
+      (rule) =>
+        rule.hostname === hostname &&
+        (!rule.pathnameStartsWith || pathname.startsWith(rule.pathnameStartsWith)),
+    )
+
+    if (matchedRule) {
+      return {
+        src: matchedRule.iconSrc,
+        fallbackSrc,
+      }
+    }
+  } catch {
+    return { src: fallbackSrc, fallbackSrc }
+  }
+
+  return { src: fallbackSrc, fallbackSrc }
 }
 
 function getSafeBookmarkUrl(url: string) {
@@ -144,8 +278,8 @@ type GroupCardContentProps = {
   bookmarkSortingDisabled: boolean
   suppressBookmarkTransforms: boolean
   search: string
-  selectedTag: string | null
-  onAddBookmark: (groupName: string) => void
+  selectedTags: string[]
+  tagFilterMode: TagFilterMode
   onEditGroup: (group: BookmarkGroup) => void
   onEditBookmark: (bookmark: Bookmark) => void
   onOpenGroupBookmarks: (bookmarks: Bookmark[]) => void
@@ -158,8 +292,8 @@ function GroupCardContent({
   bookmarkSortingDisabled,
   suppressBookmarkTransforms,
   search,
-  selectedTag,
-  onAddBookmark,
+  selectedTags,
+  tagFilterMode,
   onEditGroup,
   onEditBookmark,
   onOpenGroupBookmarks,
@@ -168,29 +302,21 @@ function GroupCardContent({
     <>
       <div className="group-header">
         <div>
-          <p className="group-label">Group</p>
           <div className="group-title">
             <h2>{group.name}</h2>
-            {groupBookmarks.length > 0 ? (
-              <button
-                className="open-all-button"
-                type="button"
-                onClick={() => onOpenGroupBookmarks(groupBookmarks)}
-              >
-                Open all
-              </button>
-            ) : null}
           </div>
         </div>
         <div className="group-actions">
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => onAddBookmark(group.name)}
-          >
-            Add bookmark
-          </button>
-          <button className="ghost-button" type="button" onClick={() => onEditGroup(group)}>
+          {groupBookmarks.length > 0 ? (
+            <button
+              className="open-all-button"
+              type="button"
+              onClick={() => onOpenGroupBookmarks(groupBookmarks)}
+            >
+              Open all
+            </button>
+          ) : null}
+          <button className="group-edit-button" type="button" onClick={() => onEditGroup(group)}>
             Edit group
           </button>
         </div>
@@ -208,13 +334,14 @@ function GroupCardContent({
               locked={locked || bookmarkSortingDisabled}
               onEditBookmark={onEditBookmark}
               search={search}
-              selectedTag={selectedTag}
+              selectedTags={selectedTags}
+              tagFilterMode={tagFilterMode}
               suppressTransform={suppressBookmarkTransforms}
             />
           ))}
 
           {groupBookmarks.length === 0 ? (
-            <p className="group-empty">No bookmarks yet. This group is ready for Phase 4 CRUD.</p>
+            <p className="group-empty">No bookmarks yet.</p>
           ) : null}
         </div>
       </SortableContext>
@@ -259,7 +386,8 @@ type SortableBookmarkRowProps = {
   bookmark: Bookmark
   locked: boolean
   search: string
-  selectedTag: string | null
+  selectedTags: string[]
+  tagFilterMode: TagFilterMode
   onEditBookmark: (bookmark: Bookmark) => void
   suppressTransform: boolean
 }
@@ -273,7 +401,7 @@ function BookmarkRow({
   visible: boolean
   onEditBookmark: (bookmark: Bookmark) => void
 }) {
-  const hostname = getDisplayHostname(bookmark.url)
+  const { src, fallbackSrc } = getBookmarkIconSources(bookmark.url)
 
   return (
     <>
@@ -287,12 +415,19 @@ function BookmarkRow({
         <img
           className="bookmark-favicon"
           alt=""
-          src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=64`}
+          src={src}
+          onError={(event) => {
+            if (event.currentTarget.src === fallbackSrc) {
+              return
+            }
+
+            event.currentTarget.onerror = null
+            event.currentTarget.src = fallbackSrc
+          }}
         />
 
         <div className="bookmark-copy">
           <span className="bookmark-name">{bookmark.name}</span>
-          <span className="bookmark-url">{hostname}</span>
         </div>
       </a>
 
@@ -312,11 +447,12 @@ function SortableBookmarkRow({
   bookmark,
   locked,
   search,
-  selectedTag,
+  selectedTags,
+  tagFilterMode,
   onEditBookmark,
   suppressTransform,
 }: SortableBookmarkRowProps) {
-  const visible = matchesBookmark(search, selectedTag, bookmark)
+  const visible = matchesBookmark(search, selectedTags, tagFilterMode, bookmark)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: bookmark.id,
     disabled: locked || !visible,
@@ -347,12 +483,14 @@ function SortableBookmarkRow({
 
 export function App() {
   const [search, setSearch] = useState('')
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>('and')
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isAddingGroup, setIsAddingGroup] = useState(false)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [isBookmarkFormOpen, setIsBookmarkFormOpen] = useState(false)
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null)
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [bookmarkGroupName, setBookmarkGroupName] = useState('')
   const [bookmarkName, setBookmarkName] = useState('')
@@ -464,14 +602,27 @@ export function App() {
       link.download = buildBackupFilename()
       link.click()
       URL.revokeObjectURL(objectUrl)
-      setStatusMessage('Backup exported.')
     } catch {
       setStatusMessage('Backup export failed.')
     }
   }
 
   function openImportPicker() {
+    setIsActionMenuOpen(false)
     importInputRef.current?.click()
+  }
+
+  function openShortcutSettings() {
+    setIsActionMenuOpen(false)
+
+    const shortcutUrl = 'chrome://extensions/shortcuts'
+
+    if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+      void chrome.tabs.create({ url: shortcutUrl })
+      return
+    }
+
+    window.open(shortcutUrl, '_blank', 'noopener,noreferrer')
   }
 
   async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
@@ -498,8 +649,7 @@ export function App() {
       setDashboardData(importedData)
       closeForms()
       setSearch('')
-      setSelectedTag(null)
-      setStatusMessage('Backup imported and replaced current data.')
+      setSelectedTags([])
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import failed.'
 
@@ -509,6 +659,7 @@ export function App() {
 
   function closeForms() {
     clearQuickSaveIntentState()
+    setIsActionMenuOpen(false)
     setIsAddingGroup(false)
     setEditingGroupId(null)
     setIsBookmarkFormOpen(false)
@@ -522,6 +673,7 @@ export function App() {
   }
 
   function openAddBookmark(initialGroupName = '') {
+    setIsActionMenuOpen(false)
     setIsBookmarkFormOpen(true)
     setEditingBookmarkId(null)
     setEditingGroupId(null)
@@ -536,6 +688,7 @@ export function App() {
   function openEditBookmark(bookmark: Bookmark) {
     const bookmarkGroup = dashboardData?.groups.find((group) => group.id === bookmark.groupId)
 
+    setIsActionMenuOpen(false)
     setEditingBookmarkId(bookmark.id)
     setIsBookmarkFormOpen(true)
     setEditingGroupId(null)
@@ -548,6 +701,7 @@ export function App() {
   }
 
   function openEditGroup(group: BookmarkGroup) {
+    setIsActionMenuOpen(false)
     setEditingGroupId(group.id)
     setIsAddingGroup(false)
     setIsBookmarkFormOpen(false)
@@ -567,6 +721,14 @@ export function App() {
       : [...currentTags, tag]
 
     setBookmarkTags(formatTags(nextTags))
+  }
+
+  function toggleSelectedTag(tag: string) {
+    setSelectedTags((currentTags) =>
+      currentTags.includes(tag)
+        ? currentTags.filter((currentTag) => currentTag !== tag)
+        : [...currentTags, tag],
+    )
   }
 
   async function handleCreateGroup(event: FormEvent<HTMLFormElement>) {
@@ -1044,30 +1206,52 @@ export function App() {
       dragStartBookmark &&
       draggingBookmark.groupId !== dragStartBookmark.groupId,
   )
+  const hasOpenForm = isAddingGroup || Boolean(editingGroupId) || isBookmarkFormOpen
 
-  const allTags = Array.from(new Set(bookmarks.flatMap((bookmark) => bookmark.tags))).sort(
-    (left, right) => left.localeCompare(right),
+  useEffect(() => {
+    if (!hasOpenForm) {
+      return
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        closeForms()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [hasOpenForm])
+
+  const tagCounts = bookmarks.reduce((counts, bookmark) => {
+    bookmark.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1))
+
+    return counts
+  }, new Map<string, number>())
+  const allTags = Array.from(tagCounts.keys()).sort(
+    (left, right) => (tagCounts.get(right) ?? 0) - (tagCounts.get(left) ?? 0) || left.localeCompare(right),
   )
 
   return (
     <div className="shell">
       <header className="hero">
         <div>
-          <p className="eyebrow">Chrome New Tab Extension</p>
           <h1>Personal Bookmark Dashboard</h1>
-          <p className="hero-copy">
-            A minimal dark dashboard scaffold with fixed group cards, searchable bookmark rows,
-            and a persisted lock toggle.
-          </p>
         </div>
 
         <div className="hero-actions">
           <button
-            className={`lock-button ${locked ? 'is-locked' : 'is-unlocked'}`}
+            className={`lock-switch ${locked ? 'is-locked' : 'is-unlocked'}`}
             onClick={toggleLocked}
+            role="switch"
+            aria-checked={!locked}
             type="button"
           >
-            {locked ? 'Locked layout' : 'Unlocked layout'}
+            <span className="lock-switch-track" aria-hidden="true">
+              <span className="lock-switch-thumb" />
+            </span>
+            <span>{locked ? 'Locked' : 'Unlocked'}</span>
           </button>
 
           <button
@@ -1075,26 +1259,7 @@ export function App() {
             type="button"
             disabled={!dashboardData}
             onClick={() => {
-              void handleExportBackup()
-            }}
-          >
-            Export JSON
-          </button>
-
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={!dashboardData}
-            onClick={openImportPicker}
-          >
-            Import JSON
-          </button>
-
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={!dashboardData}
-            onClick={() => {
+              setIsActionMenuOpen(false)
               setIsAddingGroup(true)
               setEditingGroupId(null)
               setIsBookmarkFormOpen(false)
@@ -1114,6 +1279,41 @@ export function App() {
           >
             Add bookmark
           </button>
+
+          <div className="action-menu">
+            <button
+              className="menu-button"
+              type="button"
+              disabled={!dashboardData}
+              aria-expanded={isActionMenuOpen}
+              aria-label="Open dashboard menu"
+              onClick={() => setIsActionMenuOpen((isOpen) => !isOpen)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+
+            {isActionMenuOpen ? (
+              <div className="menu-panel">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionMenuOpen(false)
+                    void handleExportBackup()
+                  }}
+                >
+                  Export JSON
+                </button>
+                <button type="button" onClick={openImportPicker}>
+                  Import JSON
+                </button>
+                <button type="button" onClick={openShortcutSettings}>
+                  Change quick-save shortcut
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <input
@@ -1128,219 +1328,191 @@ export function App() {
       {statusMessage ? <p className="status-note">{statusMessage}</p> : null}
 
       {isAddingGroup || editingGroupId ? (
-        <section className="form-panel" aria-label={editingGroupId ? 'Edit group' : 'Add group'}>
-          <form className="quick-form" onSubmit={handleCreateGroup}>
-            <div>
-              <p className="form-eyebrow">{editingGroupId ? 'Edit Group' : 'New Group'}</p>
-              <h2>{editingGroupId ? 'Rename group' : 'Add a bookmark group'}</h2>
-            </div>
+        <div className="form-overlay" role="presentation">
+          <section
+            className="form-panel"
+            aria-label={editingGroupId ? 'Edit group' : 'Add group'}
+            aria-modal="true"
+            role="dialog"
+          >
+            <form className="quick-form group-form" onSubmit={handleCreateGroup}>
+              <div className="form-heading">
+                <p className="form-eyebrow">{editingGroupId ? 'Edit Group' : 'New Group'}</p>
+              </div>
 
-            <label>
-              <span>Group name</span>
-              <input
-                autoFocus
-                value={groupName}
-                onChange={(event) => setGroupName(event.target.value)}
-                placeholder="Design, Admin, Reading..."
-              />
-            </label>
+              <label className="field-label">
+                <input
+                  autoFocus
+                  value={groupName}
+                  onChange={(event) => setGroupName(event.target.value)}
+                  placeholder="Type group name, e.g. Design, Admin, Reading..."
+                />
+              </label>
 
-            {formError ? <p className="form-error">{formError}</p> : null}
+              {formError ? <p className="form-error">{formError}</p> : null}
 
-            <div className="form-actions">
-              {editingGroupId ? (
-                <button className="danger-button" type="button" onClick={handleDeleteGroup}>
-                  Delete group and bookmarks
+              <div className="form-actions">
+                {editingGroupId ? (
+                  <button className="danger-link-button" type="button" onClick={handleDeleteGroup}>
+                    Delete group and bookmarks
+                  </button>
+                ) : null}
+                <button className="secondary-button" type="button" onClick={closeForms}>
+                  Cancel
                 </button>
-              ) : null}
-              <button className="secondary-button" type="button" onClick={closeForms}>
-                Cancel
-              </button>
-              <button className="lock-button is-unlocked" type="submit">
-                {editingGroupId ? 'Save changes' : 'Save group'}
-              </button>
-            </div>
-          </form>
-        </section>
+                <button className="lock-button is-unlocked" type="submit">
+                  {editingGroupId ? 'Save changes' : 'Save group'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       ) : null}
 
       {isBookmarkFormOpen ? (
-        <section className="form-panel" aria-label={editingBookmarkId ? 'Edit bookmark' : 'Add bookmark'}>
-          <form className="quick-form" onSubmit={handleCreateBookmark}>
-            <div>
-              <p className="form-eyebrow">
-                {editingBookmarkId ? 'Edit Bookmark' : isQuickSaveForm ? 'Quick Save' : 'New Bookmark'}
-              </p>
-              <h2>
-                {editingBookmarkId
-                  ? 'Update bookmark'
-                  : isQuickSaveForm
-                    ? 'Save current page'
-                    : 'Add a bookmark'}
-              </h2>
-            </div>
-
-            <label>
-              <span>Group</span>
-              <input
-                autoFocus={isQuickSaveForm}
-                required
-                list="bookmark-group-options"
-                value={bookmarkGroupName}
-                onChange={(event) => setBookmarkGroupName(event.target.value)}
-                placeholder="Type an existing or new group"
-              />
-              <datalist id="bookmark-group-options">
-                {groups.map((group) => (
-                  <option key={group.id} value={group.name} />
-                ))}
-              </datalist>
-            </label>
-
-            <label>
-              <span>Name</span>
-              <input
-                value={bookmarkName}
-                onChange={(event) => setBookmarkName(event.target.value)}
-                placeholder="Optional, falls back to URL"
-              />
-            </label>
-
-            <label>
-              <span>URL</span>
-              <input
-                autoFocus={!isQuickSaveForm}
-                value={bookmarkUrl}
-                onChange={(event) => setBookmarkUrl(event.target.value)}
-                placeholder="https://example.com"
-                type="url"
-              />
-            </label>
-
-            <label>
-              <span>Tags</span>
-              <input
-                value={bookmarkTags}
-                onChange={(event) => setBookmarkTags(event.target.value)}
-                placeholder="docs, tools, design"
-              />
-            </label>
-
-            {allTags.length > 0 ? (
-              <div className="tag-picker" aria-label="Existing tags">
-                <span>Existing tags</span>
-                <div className="tag-picker-list">
-                  {allTags.map((tag) => {
-                    const isSelected = parseTagInput(bookmarkTags).includes(tag)
-
-                    return (
-                      <button
-                        key={tag}
-                        className={`tag-chip tag-picker-chip ${isSelected ? 'is-active' : ''}`}
-                        type="button"
-                        onClick={() => toggleBookmarkTag(tag)}
-                      >
-                        {tag}
-                      </button>
-                    )
-                  })}
-                </div>
+        <div className="form-overlay" role="presentation">
+          <section
+            className="form-panel"
+            aria-label={editingBookmarkId ? 'Edit bookmark' : 'Add bookmark'}
+            aria-modal="true"
+            role="dialog"
+          >
+            <form className="quick-form bookmark-form" onSubmit={handleCreateBookmark}>
+              <div className="form-heading">
+                <p className="form-eyebrow">
+                  {editingBookmarkId ? 'Edit Bookmark' : isQuickSaveForm ? 'Quick Save' : 'New Bookmark'}
+                </p>
               </div>
-            ) : null}
 
-            {formError ? <p className="form-error">{formError}</p> : null}
+              <label className="field-label">
+                <span>Group</span>
+                <input
+                  autoFocus={isQuickSaveForm}
+                  required
+                  list="bookmark-group-options"
+                  value={bookmarkGroupName}
+                  onChange={(event) => setBookmarkGroupName(event.target.value)}
+                  placeholder="Group, existing or new"
+                />
+                <datalist id="bookmark-group-options">
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.name} />
+                  ))}
+                </datalist>
+              </label>
 
-            <div className="form-actions">
-              {editingBookmarkId ? (
-                <button className="danger-button" type="button" onClick={handleDeleteBookmark}>
-                  Delete
-                </button>
+              <label className="field-label">
+                <span>Name</span>
+                <input
+                  value={bookmarkName}
+                  onChange={(event) => setBookmarkName(event.target.value)}
+                  placeholder="example.com"
+                />
+              </label>
+
+              <label className="field-label">
+                <span>URL</span>
+                <input
+                  autoFocus={!isQuickSaveForm}
+                  value={bookmarkUrl}
+                  onChange={(event) => setBookmarkUrl(event.target.value)}
+                  placeholder="https://example.com"
+                  type="url"
+                />
+              </label>
+
+              <label className="field-label">
+                <span>Tags</span>
+                <input
+                  value={bookmarkTags}
+                  onChange={(event) => setBookmarkTags(event.target.value)}
+                  placeholder="e.g. docs, tools, design"
+                />
+              </label>
+
+              {allTags.length > 0 ? (
+                <div className="tag-picker" aria-label="Existing tags">
+                  <div className="tag-picker-list">
+                    {allTags.map((tag) => {
+                      const isSelected = parseTagInput(bookmarkTags).includes(tag)
+
+                      return (
+                        <button
+                          key={tag}
+                          className={`tag-chip tag-picker-chip ${isSelected ? 'is-active' : ''}`}
+                          type="button"
+                          onClick={() => toggleBookmarkTag(tag)}
+                        >
+                          {tag}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               ) : null}
-              <button className="secondary-button" type="button" onClick={closeForms}>
-                Cancel
-              </button>
-              <button className="lock-button is-unlocked" type="submit">
-                {editingBookmarkId ? 'Save changes' : 'Save bookmark'}
-              </button>
-            </div>
-          </form>
-        </section>
+
+              {formError ? <p className="form-error">{formError}</p> : null}
+
+              <div className="form-actions">
+                {editingBookmarkId ? (
+                  <button className="danger-button" type="button" onClick={handleDeleteBookmark}>
+                    Delete
+                  </button>
+                ) : null}
+                <button className="secondary-button" type="button" onClick={closeForms}>
+                  Cancel
+                </button>
+                <button className="lock-button is-unlocked" type="submit">
+                  {editingBookmarkId ? 'Save changes' : 'Save bookmark'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       ) : null}
 
-      <section className="toolbar">
-        <label className="search-field">
-          <span>Search</span>
-          <input
-            type="search"
-            placeholder="Search by name or URL"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-
-        <div className="tag-panel">
-          <button
-            className={`tag-chip ${selectedTag === null ? 'is-active' : ''}`}
-            onClick={() => setSelectedTag(null)}
-            type="button"
+      <div className="dashboard-layout">
+        {!dashboardData ? (
+          <main className="loading-state">Loading dashboard data...</main>
+        ) : (
+          <DndContext
+            collisionDetection={dashboardCollisionDetection}
+            onDragCancel={handleDragCancel}
+            onDragEnd={(event) => {
+              void handleDragEnd(event)
+            }}
+            onDragMove={handleDragMove}
+            onDragOver={handleDragOver}
+            onDragStart={handleDragStart}
+            sensors={sensors}
           >
-            All tags
-          </button>
+            <SortableContext items={groups.map((group) => group.id)} strategy={rectSortingStrategy}>
+              <main className="group-grid">
+                {groups.map((group) => {
+                  const groupBookmarks = bookmarks
+                    .filter((bookmark) => bookmark.groupId === group.id)
+                    .sort((left, right) => left.order - right.order)
 
-          {allTags.map((tag) => (
-            <button
-              key={tag}
-              className={`tag-chip ${selectedTag === tag ? 'is-active' : ''}`}
-              onClick={() => setSelectedTag(tag)}
-              type="button"
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {!dashboardData ? (
-        <main className="loading-state">Loading dashboard data...</main>
-      ) : (
-        <DndContext
-          collisionDetection={dashboardCollisionDetection}
-          onDragCancel={handleDragCancel}
-          onDragEnd={(event) => {
-            void handleDragEnd(event)
-          }}
-          onDragMove={handleDragMove}
-          onDragOver={handleDragOver}
-          onDragStart={handleDragStart}
-          sensors={sensors}
-        >
-          <SortableContext items={groups.map((group) => group.id)} strategy={rectSortingStrategy}>
-            <main className="group-grid">
-              {groups.map((group) => {
-                const groupBookmarks = bookmarks
-                  .filter((bookmark) => bookmark.groupId === group.id)
-                  .sort((left, right) => left.order - right.order)
-
-                return (
-                  <SortableGroupCard
-                    group={group}
-                    bookmarkSortingDisabled={Boolean(draggingGroupId)}
-                    groupBookmarks={groupBookmarks}
-                    groupSortingDisabled={Boolean(draggingBookmarkId)}
-                    key={group.id}
-                    locked={locked}
-                    onAddBookmark={openAddBookmark}
-                    onEditBookmark={openEditBookmark}
-                    onEditGroup={openEditGroup}
-                    onOpenGroupBookmarks={openGroupBookmarks}
-                    search={search}
-                    selectedTag={selectedTag}
-                    suppressBookmarkTransforms={isCrossGroupBookmarkDrag}
-                  />
-                )
-              })}
-            </main>
-          </SortableContext>
+                  return (
+                    <SortableGroupCard
+                      group={group}
+                      bookmarkSortingDisabled={Boolean(draggingGroupId)}
+                      groupBookmarks={groupBookmarks}
+                      groupSortingDisabled={Boolean(draggingBookmarkId)}
+                      key={group.id}
+                      locked={locked}
+                      onEditBookmark={openEditBookmark}
+                      onEditGroup={openEditGroup}
+                      onOpenGroupBookmarks={openGroupBookmarks}
+                      search={search}
+                      selectedTags={selectedTags}
+                      tagFilterMode={tagFilterMode}
+                      suppressBookmarkTransforms={isCrossGroupBookmarkDrag}
+                    />
+                  )
+                })}
+              </main>
+            </SortableContext>
 
           <DragOverlay adjustScale={false} dropAnimation={draggingGroupId ? null : undefined}>
             {draggingGroupId ? (
@@ -1362,12 +1534,12 @@ export function App() {
                       bookmarkSortingDisabled
                       groupBookmarks={activeGroupBookmarks}
                       locked={locked}
-                      onAddBookmark={openAddBookmark}
                       onEditBookmark={openEditBookmark}
                       onEditGroup={openEditGroup}
                       onOpenGroupBookmarks={openGroupBookmarks}
                       search={search}
-                      selectedTag={selectedTag}
+                      selectedTags={selectedTags}
+                      tagFilterMode={tagFilterMode}
                       suppressBookmarkTransforms
                     />
                   </section>
@@ -1393,8 +1565,68 @@ export function App() {
               })()
             ) : null}
           </DragOverlay>
-        </DndContext>
-      )}
+          </DndContext>
+        )}
+      </div>
+
+      <aside
+        className="search-sidebar is-open"
+        id="search-sidebar"
+        aria-hidden={false}
+      >
+        <div className="toolbar">
+          <label className="search-field">
+            <span>Search</span>
+            <input
+              type="search"
+              placeholder="Search by name or URL"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+
+          <div className="tag-panel">
+            <div className="tag-mode-settings" aria-label="Tag match mode">
+              <span>Match tags</span>
+              <div className="tag-mode-toggle">
+                <button
+                  className={`tag-mode-button ${tagFilterMode === 'and' ? 'is-active' : ''}`}
+                  onClick={() => setTagFilterMode('and')}
+                  type="button"
+                >
+                  All
+                </button>
+                <button
+                  className={`tag-mode-button ${tagFilterMode === 'or' ? 'is-active' : ''}`}
+                  onClick={() => setTagFilterMode('or')}
+                  type="button"
+                >
+                  Any
+                </button>
+              </div>
+            </div>
+
+            <button
+              className={`tag-chip ${selectedTags.length === 0 ? 'is-active' : ''}`}
+              onClick={() => setSelectedTags([])}
+              type="button"
+            >
+              All tags
+            </button>
+
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                className={`tag-chip ${selectedTags.includes(tag) ? 'is-active' : ''}`}
+                onClick={() => toggleSelectedTag(tag)}
+                type="button"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
     </div>
   )
 }

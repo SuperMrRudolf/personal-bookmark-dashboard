@@ -24,7 +24,7 @@ Bookmarks are organized into named groups. The dashboard supports bookmark/group
 - deleting a group deletes all bookmarks inside it after confirmation
 - group-level `Open all` action
 - text search by bookmark name and URL
-- tag click filtering
+- multi-select tag click filtering with All/Any match modes
 - existing-tag picker in add/edit bookmark form
 - filters hide bookmarks in place without collapsing layout
 - lock/unlock toggle, locked by default
@@ -102,8 +102,7 @@ Completed:
 - lock does not block add/edit/delete actions
 
 Still to improve later:
-- convert top-of-page forms into compact anchored popups
-- improve form positioning and keyboard behavior
+- refine popup form positioning and keyboard behavior
 - refine confirmation copy and error states during polish
 
 ### 4. Search And Tag Filtering - Complete
@@ -113,7 +112,9 @@ Goal: support fast filtering without breaking spatial memory.
 Completed:
 - search by bookmark name and URL
 - sidebar tag list from unique bookmark tags
-- click-to-filter by tag
+- click-to-filter by one or more tags
+- tag filtering can match all selected tags or any selected tag
+- `All tags` clears selected tag filters
 - hidden bookmarks preserve layout slot
 - hidden bookmarks are non-interactive
 - group cards remain visible while filtering
@@ -239,7 +240,7 @@ Goal: make the extension feel finished and safe for daily use.
 
 Polish:
 - final LumiList-inspired visual pass
-- compact anchored popups
+- refine compact popup forms
 - improved motion/hover/focus states
 - better empty states
 - better tag/filter reset states
@@ -264,7 +265,7 @@ Continue with **9. Polish And Hardening**.
 
 Recommended order inside polish:
 1. UI/visual polish in small slices so drag behavior stays stable.
-2. Convert add/edit flows from top-of-page panels to compact popups.
+2. Refine the compact popup forms with better positioning, focus handling, and final styling.
 3. Run larger-dataset and edge-case testing.
 4. Expand README with install, build, usage, backup, and shortcut instructions.
 - hardening/dependency maintenance

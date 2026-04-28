@@ -299,6 +299,7 @@ Behavior:
 - Cancel discards changes and closes the popup
 - Delete asks for confirmation, then deletes the bookmark
 - Escape key should close the popup when safe
+- the popup must not push the dashboard layout down when opened
 
 ### Tags Input
 For v1, tags are entered as:
@@ -331,6 +332,7 @@ Minimum v1 behavior:
 - typing a new group name creates that group on save
 - save persists the new bookmark
 - cancel closes without saving
+- the add flow opens as a compact popup/panel instead of a top-of-page form
 
 ---
 
@@ -428,8 +430,12 @@ This is a **core product requirement**.
 The sidebar must show a unique list of all tags currently used.
 
 Behavior:
-- clicking a tag applies a filter
-- only bookmarks with that tag remain visible/clickable
+- clicking a tag toggles that tag on or off
+- multiple tags can be selected at once
+- the user can switch between matching all selected tags and matching any selected tag
+- in **All** mode, only bookmarks containing every selected tag remain visible/clickable
+- in **Any** mode, bookmarks containing at least one selected tag remain visible/clickable
+- clicking **All tags** clears selected tags
 - non-matching bookmarks become invisible and unclickable
 - group cards remain visible
 - bookmark positions remain fixed
