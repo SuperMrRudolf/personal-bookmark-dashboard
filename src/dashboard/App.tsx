@@ -42,6 +42,11 @@ import type { Bookmark, BookmarkGroup, DashboardData } from '../lib/types'
 
 type TagFilterMode = 'and' | 'or'
 
+type UndoDeleteToast = {
+  message: string
+  restoreData: DashboardData
+}
+
 function matchesBookmark(
   query: string,
   selectedTags: string[],
@@ -316,9 +321,11 @@ function GroupCardContent({
               Open all
             </button>
           ) : null}
-          <button className="group-edit-button" type="button" onClick={() => onEditGroup(group)}>
-            Edit group
-          </button>
+          {!locked ? (
+            <button className="group-edit-button" type="button" onClick={() => onEditGroup(group)}>
+              Edit group
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -395,10 +402,12 @@ type SortableBookmarkRowProps = {
 function BookmarkRow({
   bookmark,
   visible,
+  locked,
   onEditBookmark,
 }: {
   bookmark: Bookmark
   visible: boolean
+  locked: boolean
   onEditBookmark: (bookmark: Bookmark) => void
 }) {
   const { src, fallbackSrc } = getBookmarkIconSources(bookmark.url)
@@ -431,14 +440,16 @@ function BookmarkRow({
         </div>
       </a>
 
-      <button
-        className="bookmark-edit"
-        type="button"
-        tabIndex={visible ? 0 : -1}
-        onClick={() => onEditBookmark(bookmark)}
-      >
-        Edit
-      </button>
+      {!locked ? (
+        <button
+          className="bookmark-edit"
+          type="button"
+          tabIndex={visible ? 0 : -1}
+          onClick={() => onEditBookmark(bookmark)}
+        >
+          Edit
+        </button>
+      ) : null}
     </>
   )
 }
@@ -476,7 +487,12 @@ function SortableBookmarkRow({
       {...attributes}
       {...listeners}
     >
-      <BookmarkRow bookmark={bookmark} visible={visible} onEditBookmark={onEditBookmark} />
+      <BookmarkRow
+        bookmark={bookmark}
+        locked={locked}
+        visible={visible}
+        onEditBookmark={onEditBookmark}
+      />
     </div>
   )
 }
@@ -485,6 +501,7 @@ export function App() {
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>('and')
+  const [isSearchSidebarOpen, setIsSearchSidebarOpen] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isAddingGroup, setIsAddingGroup] = useState(false)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
@@ -498,6 +515,7 @@ export function App() {
   const [bookmarkTags, setBookmarkTags] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [undoDeleteToast, setUndoDeleteToast] = useState<UndoDeleteToast | null>(null)
   const [isQuickSaveIntent, setIsQuickSaveIntent] = useState(hasQuickSaveIntent)
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [draggingBookmarkId, setDraggingBookmarkId] = useState<string | null>(null)
@@ -524,6 +542,16 @@ export function App() {
   useEffect(() => {
     latestDashboardDataRef.current = dashboardData
   }, [dashboardData])
+
+  useEffect(() => {
+    if (!undoDeleteToast) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setUndoDeleteToast(null), 7000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [undoDeleteToast])
 
   useEffect(() => {
     if (!dashboardData || !isQuickSaveIntent) {
@@ -672,6 +700,20 @@ export function App() {
     setFormError(null)
   }
 
+  function showUndoDeleteToast(message: string, restoreData: DashboardData) {
+    setUndoDeleteToast({ message, restoreData })
+  }
+
+  async function undoDelete() {
+    if (!undoDeleteToast) {
+      return
+    }
+
+    await saveDashboardData(undoDeleteToast.restoreData)
+    setDashboardData(undoDeleteToast.restoreData)
+    setUndoDeleteToast(null)
+  }
+
   function openAddBookmark(initialGroupName = '') {
     setIsActionMenuOpen(false)
     setIsBookmarkFormOpen(true)
@@ -752,16 +794,22 @@ export function App() {
     }
 
     const confirmed = window.confirm(
-      'Delete this group and all bookmarks inside it? This cannot be undone. Move any bookmarks you want to keep to another group before deleting.',
+      'Delete this group and all bookmarks inside it? You can undo this right after deleting.',
     )
 
     if (!confirmed) {
       return
     }
 
+    const restoreData = dashboardData
+    const deletedGroup = groups.find((group) => group.id === editingGroupId)
     const nextData = await deleteGroup(editingGroupId)
     setDashboardData(nextData)
     closeForms()
+
+    if (restoreData) {
+      showUndoDeleteToast(`Deleted ${deletedGroup?.name ?? 'group'}.`, restoreData)
+    }
   }
 
   async function handleCreateBookmark(event: FormEvent<HTMLFormElement>) {
@@ -801,15 +849,21 @@ export function App() {
       return
     }
 
-    const confirmed = window.confirm('Delete this bookmark? This cannot be undone.')
+    const confirmed = window.confirm('Delete this bookmark? You can undo this right after deleting.')
 
     if (!confirmed) {
       return
     }
 
+    const restoreData = dashboardData
+    const deletedBookmark = bookmarks.find((bookmark) => bookmark.id === editingBookmarkId)
     const nextData = await deleteBookmark(editingBookmarkId)
     setDashboardData(nextData)
     closeForms()
+
+    if (restoreData) {
+      showUndoDeleteToast(`Deleted ${deletedBookmark?.name ?? 'bookmark'}.`, restoreData)
+    }
   }
 
   function openGroupBookmarks(groupBookmarks: Bookmark[]) {
@@ -1236,11 +1290,7 @@ export function App() {
   return (
     <div className="shell">
       <header className="hero">
-        <div>
-          <h1>Personal Bookmark Dashboard</h1>
-        </div>
-
-        <div className="hero-actions">
+        <div className="hero-lock-control">
           <button
             className={`lock-switch ${locked ? 'is-locked' : 'is-unlocked'}`}
             onClick={toggleLocked}
@@ -1248,12 +1298,14 @@ export function App() {
             aria-checked={!locked}
             type="button"
           >
+            <span>{locked ? 'Locked' : 'Unlocked'}</span>
             <span className="lock-switch-track" aria-hidden="true">
               <span className="lock-switch-thumb" />
             </span>
-            <span>{locked ? 'Locked' : 'Unlocked'}</span>
           </button>
+        </div>
 
+        <div className="hero-actions">
           <button
             className="secondary-button"
             type="button"
@@ -1455,7 +1507,7 @@ export function App() {
 
               <div className="form-actions">
                 {editingBookmarkId ? (
-                  <button className="danger-button" type="button" onClick={handleDeleteBookmark}>
+                  <button className="danger-link-button" type="button" onClick={handleDeleteBookmark}>
                     Delete
                   </button>
                 ) : null}
@@ -1471,7 +1523,37 @@ export function App() {
         </div>
       ) : null}
 
-      <div className="dashboard-layout">
+      <button
+        className={`search-sidebar-toggle ${isSearchSidebarOpen ? 'is-open' : ''}`}
+        type="button"
+        aria-controls="search-sidebar"
+        aria-expanded={isSearchSidebarOpen}
+        aria-label={isSearchSidebarOpen ? 'Hide search sidebar' : 'Show search sidebar'}
+        onClick={() => setIsSearchSidebarOpen((isOpen) => !isOpen)}
+      >
+        {isSearchSidebarOpen ? (
+          <svg
+            aria-hidden="true"
+            className="search-sidebar-toggle-svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        ) : (
+          <svg
+            aria-hidden="true"
+            className="search-sidebar-toggle-svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+        )}
+      </button>
+
+      <div className={`dashboard-layout ${isSearchSidebarOpen ? 'is-search-open' : ''}`}>
         {!dashboardData ? (
           <main className="loading-state">Loading dashboard data...</main>
         ) : (
@@ -1557,6 +1639,7 @@ export function App() {
                   <div className="bookmark-row bookmark-drag-preview">
                     <BookmarkRow
                       bookmark={activeBookmark}
+                      locked={locked}
                       onEditBookmark={openEditBookmark}
                       visible
                     />
@@ -1570,9 +1653,9 @@ export function App() {
       </div>
 
       <aside
-        className="search-sidebar is-open"
+        className={`search-sidebar ${isSearchSidebarOpen ? 'is-open' : ''}`}
         id="search-sidebar"
-        aria-hidden={false}
+        aria-hidden={!isSearchSidebarOpen}
       >
         <div className="toolbar">
           <label className="search-field">
@@ -1627,6 +1710,15 @@ export function App() {
           </div>
         </div>
       </aside>
+
+      {undoDeleteToast ? (
+        <div className="undo-toast" role="status">
+          <span>{undoDeleteToast.message}</span>
+          <button type="button" onClick={() => void undoDelete()}>
+            Undo
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

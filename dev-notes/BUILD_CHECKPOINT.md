@@ -21,7 +21,7 @@ Phase 9 - Polish and hardening in progress
 - default bootstrap starts with no groups
 - storage normalization guards against missing or malformed data
 - lock toggle is persisted as part of dashboard data
-- lock/unlock is scoped to layout movement only; add/edit/delete actions remain available while locked
+- lock/unlock controls layout movement and edit affordances; edit group/bookmark controls are hidden while locked
 - dashboard now loads groups and bookmarks from storage instead of mock data
 - starter search and tag filter shell works against stored bookmarks
 - tag filtering supports selecting multiple tags at once with an All/Any match toggle; `All tags` clears the selected tag filters
@@ -60,6 +60,11 @@ Phase 9 - Polish and hardening in progress
 - dashboard typography now uses bundled local `Outfit` font files instead of a runtime Google Fonts dependency
 - dashboard ships with a mixed local icon system: official Google Workspace assets where available, bundled local favicon copies for many common services, and favicon fallback for uncatalogued sites
 - a clean icon research handoff list now exists at `dev-notes/ICON_RESEARCH_TODO.md`
+- privacy policy and Chrome Web Store listing notes are documented for release prep
+- deleted bookmarks and groups can be restored from a small undo toast immediately after deletion
+- search/tag sidebar can be toggled from a small right-side icon and scrolls independently when tag lists are long
+- top nav no longer shows a title; the lock/unlock switch sits on the left, with add/menu actions on the right
+- dependency audit currently reports 0 vulnerabilities after a scoped Rollup override for CRXJS
 - production build is verified
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
@@ -99,8 +104,10 @@ dev-notes/
   ICON_RESEARCH_TODO.md
   MVP_BUILD_PHASES.md
   PRD.md
+  STORE_LISTING_NOTES.md
 
 LICENSE
+PRIVACY.md
 README.md
 index.html
 manifest.config.ts
@@ -128,11 +135,10 @@ src/
 - refine compact popup placement, focus behavior, and visual polish
 - replace remaining fallback/runtime icons with better local official assets where possible
 - run a final larger-dataset drag/search/import/export pass
-- review dependency audit warning before release: `npm audit` currently reports high-severity Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`; do not use `npm audit fix --force` casually because npm marks the available fix as a breaking CRXJS change
 - expand the README further once feature-level setup and usage details exist
 
 ## Notes
 - Working inside WSL Ubuntu
 - Using VS Code + Codex
-- Dependency audit note from 2026-04-23: the current warning affects local build tooling, not dashboard runtime code, but should be revisited during hardening/dependency maintenance.
+- Dependency audit note: the previous CRXJS/Rollup advisory was resolved with an npm override that pins CRXJS's internal Rollup dependency to `2.80.0`; `npm audit` currently reports 0 vulnerabilities.
 - Drag-and-drop implementation note: the working approach uses `dnd-kit`, previews cross-group bookmark movement during drag movement, suppresses conflicting row transforms after crossing groups, and saves the already-previewed state on release.

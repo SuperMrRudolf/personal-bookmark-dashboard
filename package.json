@@ -25,5 +25,10 @@
     "@vitejs/plugin-react": "^5.0.4",
     "typescript": "^5.9.3",
     "vite": "^7.1.11"
+  },
+  "overrides": {
+    "@crxjs/vite-plugin": {
+      "rollup": "2.80.0"
+    }
   }
 }

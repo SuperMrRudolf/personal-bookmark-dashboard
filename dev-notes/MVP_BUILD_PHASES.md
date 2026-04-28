@@ -253,8 +253,7 @@ Hardening:
 - test invalid URLs
 - test broken favicon URLs
 - test invalid import files
-- review dependency audit warning for Rollup advisory `GHSA-mw96-cpmx-2vgc` through `@crxjs/vite-plugin`
-- update build tooling carefully instead of running `npm audit fix --force` casually
+- dependency audit warning resolved with a scoped Rollup override for `@crxjs/vite-plugin`
 - improve accessibility labels, focus states, and contrast
 - clean up code structure and comments
 - update README with install/build/use instructions

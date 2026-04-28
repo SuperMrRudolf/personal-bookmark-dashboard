@@ -2,6 +2,7 @@
   color-scheme: dark;
   font-family:
     "Outfit", "Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif;
+  --search-toggle-right: 67px;
   --page-ink: #08111d;
   --page-deep: #0d1826;
   --page-night: #111f31;
@@ -56,7 +57,7 @@ a {
 .shell {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 20px 14px 64px;
+  padding: 20px 18px 64px 36px;
   font-family: "Outfit", "Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif;
 }
 
@@ -101,6 +102,11 @@ a {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.hero-lock-control {
+  display: flex;
+  align-items: center;
 }
 
 .status-note {
@@ -433,8 +439,16 @@ a {
 .dashboard-layout {
   display: block;
   margin-top: 22px;
-  margin-left: 304px;
-  transition: margin-left 220ms ease;
+  margin-right: 0;
+  padding-right: clamp(64px, 8vw, 152px);
+  padding-left: clamp(64px, 8vw, 152px);
+  transition: margin-right 220ms ease;
+}
+
+.dashboard-layout.is-search-open {
+  margin-right: 304px;
+  padding-right: 0;
+  padding-left: 0;
 }
 
 .toolbar {
@@ -741,18 +755,100 @@ a {
 .search-sidebar {
   position: fixed;
   top: 84px;
-  left: 14px;
+  right: 14px;
   bottom: 20px;
   z-index: 18;
   width: min(300px, calc(100vw - 28px));
-  border-right: 1px solid rgba(182, 215, 255, 0.12);
-  border-left: 0;
+  border-right: 0;
+  border-left: 1px solid rgba(182, 215, 255, 0.12);
   background: rgba(32, 36, 48, 0.96);
   box-shadow: none;
   backdrop-filter: blur(10px);
-  transform: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transform: translateX(calc(100% + 20px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+.search-sidebar.is-open {
+  transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
+}
+
+.search-sidebar-toggle {
+  position: fixed;
+  top: 92px;
+  right: var(--search-toggle-right);
+  z-index: 19;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  transition:
+    color 160ms ease,
+    right 220ms ease,
+    opacity 160ms ease;
+}
+
+.search-sidebar-toggle:hover {
+  color: var(--text-main);
+}
+
+.search-sidebar-toggle.is-open {
+  right: var(--search-toggle-right);
+}
+
+.search-sidebar-toggle-svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.undo-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  max-width: min(360px, calc(100vw - 40px));
+  padding: 12px 14px;
+  border: 1px solid rgba(182, 215, 255, 0.16);
+  border-radius: 10px;
+  color: var(--text-main);
+  background: rgba(36, 41, 56, 0.98);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+}
+
+.undo-toast span {
+  min-width: 0;
+  overflow: hidden;
+  color: #d5dbe8;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-toast button {
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  background: transparent;
+}
+
+.undo-toast button:hover {
+  color: var(--text-main);
 }
 
 @media (max-width: 900px) {
@@ -768,7 +864,15 @@ a {
 
   .dashboard-layout {
     display: block;
-    margin-left: 0;
+    margin-right: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .dashboard-layout.is-search-open {
+    margin-right: 0;
+    padding-right: 0;
+    padding-left: 0;
   }
 
   .toolbar {
@@ -794,10 +898,31 @@ a {
     align-items: stretch;
   }
 
+  .shell {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
   .search-sidebar {
     top: 76px;
-    left: 10px;
+    right: 10px;
     bottom: 16px;
     width: min(300px, calc(100vw - 20px));
+  }
+
+  .search-sidebar-toggle {
+    top: 84px;
+    right: 14px;
+  }
+
+  .search-sidebar-toggle.is-open {
+    right: 14px;
+  }
+
+  .undo-toast {
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    max-width: none;
   }
 }

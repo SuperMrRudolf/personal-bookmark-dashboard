@@ -35,3 +35,4 @@ npm run build
 ## Links
 - Website: https://designlabs.co.za/
 - Author: Rudolf Dutoit Enever
+- Privacy Policy: [PRIVACY.md](./PRIVACY.md)
