@@ -13,6 +13,7 @@ export type Bookmark = {
 export type BookmarkGroup = {
   id: string
   name: string
+  column: 0 | 1 | 2 | 3
   order: number
   createdAt: string
   updatedAt: string

@@ -554,8 +554,10 @@ a {
 }
 
 .group-grid {
-  column-count: 4;
-  column-gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
 }
 
 .grid-edit-board {
@@ -564,6 +566,75 @@ a {
   gap: 18px;
   overflow-x: auto;
   padding-bottom: 8px;
+}
+
+.group-column,
+.grid-edit-column-section {
+  border-radius: 12px;
+}
+
+.group-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+
+.group-column-stack,
+.grid-edit-column-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.grid-edit-column-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 860px;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.grid-edit-column-section.is-collapsed {
+  min-height: 0;
+}
+
+.grid-edit-column-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+  padding: 8px 0 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(182, 215, 255, 0.14);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-weight: 700;
+  background: transparent;
+}
+
+.grid-edit-column-title {
+  min-width: 0;
+}
+
+.grid-edit-column-meta {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+
+.chevron-icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .loading-state {
@@ -579,13 +650,12 @@ a {
   flex-direction: column;
   gap: 14px;
   width: 100%;
-  margin: 0 0 18px;
+  margin: 0;
   min-height: 0;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #242938;
-  break-inside: avoid;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
@@ -1099,7 +1169,11 @@ a {
   }
 
   .group-grid {
-    column-count: 1;
+    grid-template-columns: 1fr;
+  }
+
+  .grid-edit-column-section {
+    min-width: 820px;
   }
 
   .grid-edit-group {

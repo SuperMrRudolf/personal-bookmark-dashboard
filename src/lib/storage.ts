@@ -5,6 +5,8 @@ const LEGACY_SETTINGS_KEY = 'dashboard-settings'
 const QUICK_SAVE_DRAFT_KEY = 'quick-save-draft'
 const LEGACY_UNGROUPED_GROUP_ID = 'group-ungrouped'
 const DEFAULT_TIMESTAMP = '2026-01-01T00:00:00.000Z'
+const DEFAULT_GROUP_COLUMN = 0
+const GROUP_COLUMN_COUNT = 4
 
 type CreateGroupInput = {
   name: string
@@ -100,8 +102,22 @@ function normalizeImportTags(tags: string[] | string | undefined) {
   return []
 }
 
-function getNextGroupOrder(groups: BookmarkGroup[]) {
-  return Math.max(-1, ...groups.map((group) => group.order)) + 1
+function normalizeGroupColumn(column: unknown): BookmarkGroup['column'] {
+  return typeof column === 'number' &&
+    Number.isInteger(column) &&
+    column >= 0 &&
+    column < GROUP_COLUMN_COUNT
+    ? (column as BookmarkGroup['column'])
+    : DEFAULT_GROUP_COLUMN
+}
+
+function getNextGroupOrder(groups: BookmarkGroup[], column = DEFAULT_GROUP_COLUMN) {
+  return (
+    Math.max(
+      -1,
+      ...groups.filter((group) => group.column === column).map((group) => group.order),
+    ) + 1
+  )
 }
 
 function getNextBookmarkOrder(bookmarks: Bookmark[], groupId: string) {
@@ -114,12 +130,17 @@ function findGroupByName(groups: BookmarkGroup[], groupName: string) {
   return groups.find((group) => group.name.trim().toLowerCase() === normalizedGroupName)
 }
 
-function createGroupRecord(name: string, order: number): BookmarkGroup {
+function createGroupRecord(
+  name: string,
+  order: number,
+  column: BookmarkGroup['column'] = DEFAULT_GROUP_COLUMN,
+): BookmarkGroup {
   const now = getNowTimestamp()
 
   return {
     id: createId('group'),
     name: name.trim(),
+    column,
     order,
     createdAt: now,
     updatedAt: now,
@@ -191,10 +212,23 @@ function normalizeGroup(value: unknown, fallbackOrder: number): BookmarkGroup | 
   return {
     id: value.id,
     name: value.id === LEGACY_UNGROUPED_GROUP_ID && value.name === 'Ungrouped' ? 'Imported' : value.name,
+    column: normalizeGroupColumn(value.column),
     order: typeof value.order === 'number' ? value.order : fallbackOrder,
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : DEFAULT_TIMESTAMP,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : DEFAULT_TIMESTAMP,
   }
+}
+
+function normalizeGroupOrders(groups: BookmarkGroup[]) {
+  return Array.from({ length: GROUP_COLUMN_COUNT }, (_, column) =>
+    groups
+      .filter((group) => group.column === column)
+      .sort((left, right) => left.order - right.order)
+      .map((group, index) => ({
+        ...group,
+        order: index,
+      })),
+  ).flat()
 }
 
 function normalizeBookmark(
@@ -244,18 +278,20 @@ function normalizeDashboardData(value: unknown): DashboardData {
   const legacyUngroupedHasBookmarks = rawBookmarks.some(
     (bookmark) => isRecord(bookmark) && bookmark.groupId === LEGACY_UNGROUPED_GROUP_ID,
   )
-  const groups = rawGroups
-        .filter(
-          (group) =>
-            !(
-              isRecord(group) &&
-              group.id === LEGACY_UNGROUPED_GROUP_ID &&
-              group.name === 'Ungrouped' &&
-              !legacyUngroupedHasBookmarks
-            ),
-        )
-        .map((group, index) => normalizeGroup(group, index))
-        .filter((group): group is BookmarkGroup => Boolean(group))
+  const groups = normalizeGroupOrders(
+    rawGroups
+      .filter(
+        (group) =>
+          !(
+            isRecord(group) &&
+            group.id === LEGACY_UNGROUPED_GROUP_ID &&
+            group.name === 'Ungrouped' &&
+            !legacyUngroupedHasBookmarks
+          ),
+      )
+      .map((group, index) => normalizeGroup(group, index))
+      .filter((group): group is BookmarkGroup => Boolean(group)),
+  )
 
   const validGroupIds = new Set(groups.map((group) => group.id))
   const bookmarks = rawBookmarks
@@ -265,7 +301,7 @@ function normalizeDashboardData(value: unknown): DashboardData {
   return {
     schemaVersion: 1,
     settings: normalizeSettings(value.settings),
-    groups: groups.sort((left, right) => left.order - right.order),
+    groups,
     bookmarks: bookmarks.sort((left, right) => left.order - right.order),
   }
 }
@@ -307,11 +343,8 @@ export function parseDashboardBackup(value: unknown): DashboardData {
   let groups = rawGroups
     .map((group, index) => normalizeGroup(group, index))
     .filter((group): group is BookmarkGroup => Boolean(group))
-    .sort((left, right) => left.order - right.order)
-    .map((group, index) => ({
-      ...group,
-      order: index,
-    }))
+
+  groups = normalizeGroupOrders(groups)
 
   const bookmarks = rawBookmarks
     .map((bookmark, index) => {
@@ -361,12 +394,7 @@ export function parseDashboardBackup(value: unknown): DashboardData {
     })
     .filter((bookmark): bookmark is Bookmark => bookmark !== null)
 
-  const normalizedGroups = groups
-    .sort((left, right) => left.order - right.order)
-    .map((group, index) => ({
-      ...group,
-      order: index,
-    }))
+  const normalizedGroups = normalizeGroupOrders(groups)
   const bookmarksByGroup = new Map<string, Bookmark[]>()
 
   bookmarks.forEach((bookmark) => {
@@ -547,12 +575,7 @@ export async function deleteGroup(groupId: string) {
 
     return {
       ...current,
-      groups: current.groups
-        .filter((group) => group.id !== groupId)
-        .map((group, index) => ({
-          ...group,
-          order: index,
-        })),
+      groups: normalizeGroupOrders(current.groups.filter((group) => group.id !== groupId)),
       bookmarks: current.bookmarks.filter((bookmark) => bookmark.groupId !== groupId),
     }
   })

@@ -62,6 +62,7 @@ Phase 9 - Polish and hardening in progress
 - broken bundled icon files that were actually saved HTML/JS responses were removed so affected services fall back cleanly instead of showing broken mapped assets
 - local icon notes were cleaned up and renamed to `dev-notes/ICON_LIBRARY_STATUS.md`
 - privacy policy and Chrome Web Store listing notes are documented for release prep
+- LLM-facing backup schema reference is documented in `dev-notes/LLM_BOOKMARK_JSON_SCHEMA.md`
 - deleted bookmarks and groups can be restored from a small undo toast immediately after deletion
 - search/tag sidebar can be toggled from a small right-side icon and scrolls independently when tag lists are long
 - top nav no longer shows a title; the lock/unlock switch sits on the left, with add/menu actions on the right
@@ -151,3 +152,13 @@ src/
 - Using VS Code + Codex
 - Dependency audit note: the previous CRXJS/Rollup advisory was resolved with an npm override that pins CRXJS's internal Rollup dependency to `2.80.0`; `npm audit` currently reports 0 vulnerabilities.
 - Drag-and-drop implementation note: the working approach uses `dnd-kit`, previews cross-group bookmark movement during drag movement, suppresses conflicting row transforms after crossing groups, and saves the already-previewed state on release.
+
+## 2026-04-29 checkpoint
+- groups now have a persisted `column` field (`0` through `3`) plus an `order` within that column
+- normal dashboard view renders four fixed vertical group columns instead of CSS multi-column masonry
+- grid edit mode renders collapsible column sections and hides empty filtered sections
+- search/tag filtering hides groups with no visible matching bookmarks while preserving hidden bookmark positioning inside visible groups
+- bookmark drag-and-drop still works well within and across groups
+- group drag-and-drop across the fixed columns is still unresolved: live movement can look correct, but release placement can jump to a different position
+- created `dev-notes/DEEP_RESEARCHER_PROMPT.md` as a research handoff for investigating the dnd-kit multi-container group sorting issue
+- latest `npm run build` passed after the current changes

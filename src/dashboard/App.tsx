@@ -7,6 +7,7 @@ import {
   DragOverlay,
   pointerWithin,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -17,7 +18,6 @@ import {
 } from '@dnd-kit/core'
 import {
   arrayMove,
-  rectSortingStrategy,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -29,6 +29,7 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
+  type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -52,6 +53,31 @@ type TagFilterMode = 'and' | 'or'
 type UndoDeleteToast = {
   message: string
   restoreData: DashboardData
+}
+
+type GroupDropTarget =
+  | {
+      id: string
+      type: 'group'
+    }
+  | {
+      column: BookmarkGroup['column']
+      id: string
+      type: 'group-column'
+    }
+
+const GROUP_COLUMNS: BookmarkGroup['column'][] = [0, 1, 2, 3]
+
+function getGroupColumnLabel(column: BookmarkGroup['column']) {
+  return `Column ${column + 1}`
+}
+
+function getGroupColumnDropId(column: BookmarkGroup['column']) {
+  return `group-column-${column}`
+}
+
+function isGroupColumn(value: unknown): value is BookmarkGroup['column'] {
+  return typeof value === 'number' && GROUP_COLUMNS.includes(value as BookmarkGroup['column'])
 }
 
 function matchesBookmark(
@@ -239,7 +265,10 @@ const dashboardCollisionDetection: CollisionDetection = (args) => {
       return containerType === 'bookmark' || containerType === 'group'
     }
 
-    return containerType === activeType
+    return (
+      (containerType === 'group' || containerType === 'group-column') &&
+      container.id !== args.active.id
+    )
   })
   const filteredArgs = {
     ...args,
@@ -247,9 +276,33 @@ const dashboardCollisionDetection: CollisionDetection = (args) => {
   }
 
   if (activeType === 'group') {
-    const pointerCollisions = pointerWithin(filteredArgs)
+    const groupContainers = droppableContainers.filter(
+      (container) => container.data.current?.type === 'group',
+    )
+    const columnContainers = droppableContainers.filter(
+      (container) => container.data.current?.type === 'group-column',
+    )
+    const columnPointerCollisions = pointerWithin({
+      ...args,
+      droppableContainers: columnContainers,
+    })
 
-    return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(filteredArgs)
+    if (columnPointerCollisions.length > 0) {
+      const overColumn = columnPointerCollisions[0]?.data?.droppableContainer.data.current?.column
+      const columnGroupContainers = groupContainers.filter(
+        (container) => container.data.current?.group?.column === overColumn,
+      )
+      const columnGroupCollisions = closestCenter({
+        ...args,
+        droppableContainers: columnGroupContainers,
+      })
+
+      return columnGroupCollisions.length > 0
+        ? columnGroupCollisions
+        : columnPointerCollisions
+    }
+
+    return closestCenter(filteredArgs)
   }
 
   const bookmarkContainers = droppableContainers.filter(
@@ -366,6 +419,34 @@ function GroupCardContent({
 type SortableGroupCardProps = GroupCardContentProps & {
   locked: boolean
   groupSortingDisabled: boolean
+}
+
+function GroupColumnDropZone({
+  children,
+  className,
+  column,
+}: {
+  children: ReactNode
+  className: string
+  column: BookmarkGroup['column']
+}) {
+  const { setNodeRef } = useDroppable({
+    id: getGroupColumnDropId(column),
+    data: {
+      column,
+      type: 'group-column',
+    },
+  })
+
+  return (
+    <section
+      className={className}
+      data-group-column={column}
+      ref={setNodeRef}
+    >
+      {children}
+    </section>
+  )
 }
 
 function SortableGroupCard(props: SortableGroupCardProps) {
@@ -497,6 +578,14 @@ function DragGripIcon() {
       <circle cx="15" cy="6" r="1" />
       <circle cx="15" cy="12" r="1" />
       <circle cx="15" cy="18" r="1" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg aria-hidden="true" className="chevron-icon" fill="none" viewBox="0 0 24 24">
+      <path d={expanded ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'} />
     </svg>
   )
 }
@@ -844,6 +933,7 @@ export function App() {
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null)
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
   const [isGridEditMode, setIsGridEditMode] = useState(false)
+  const [collapsedGridColumns, setCollapsedGridColumns] = useState<BookmarkGroup['column'][]>([])
   const [activeTagPickerBookmarkId, setActiveTagPickerBookmarkId] = useState<string | null>(null)
   const [tagPickerPosition, setTagPickerPosition] = useState<GridTagPickerPosition | null>(null)
   const [groupName, setGroupName] = useState('')
@@ -858,6 +948,8 @@ export function App() {
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [draggingBookmarkId, setDraggingBookmarkId] = useState<string | null>(null)
   const dragStartDataRef = useRef<DashboardData | null>(null)
+  const groupDragProjectionRef = useRef<DashboardData | null>(null)
+  const groupDropTargetRef = useRef<GroupDropTarget | null>(null)
   const latestDashboardDataRef = useRef<DashboardData | null>(null)
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const actionMenuRef = useRef<HTMLDivElement | null>(null)
@@ -1165,6 +1257,14 @@ export function App() {
     )
   }
 
+  function toggleGridColumn(column: BookmarkGroup['column']) {
+    setCollapsedGridColumns((currentColumns) =>
+      currentColumns.includes(column)
+        ? currentColumns.filter((currentColumn) => currentColumn !== column)
+        : [...currentColumns, column],
+    )
+  }
+
   async function handleCreateGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -1368,6 +1468,8 @@ export function App() {
     dragStartDataRef.current = latestDashboardDataRef.current ?? dashboardData
 
     if (dragType === 'group') {
+      groupDragProjectionRef.current = null
+      groupDropTargetRef.current = null
       setDraggingGroupId(String(event.active.id))
       return
     }
@@ -1393,53 +1495,171 @@ export function App() {
   function handleDragMove(event: DragMoveEvent) {
     const dragType = event.active.data.current?.type
 
+    if (dragType === 'group') {
+      rememberGroupDropTarget(event)
+      return
+    }
+
     if (dragType === 'bookmark') {
       previewBookmarkReorder(event)
     }
   }
 
-  function getOverGroupId(event: DragOverEvent) {
-    const overType = event.over?.data.current?.type
+  function normalizeGroupOrders(groupsToNormalize: BookmarkGroup[]) {
+    return GROUP_COLUMNS.flatMap((column) =>
+      groupsToNormalize
+        .filter((group) => group.column === column)
+        .sort((left, right) => left.order - right.order)
+        .map((group, index) => ({
+          ...group,
+          order: index,
+        })),
+    )
+  }
 
-    if (overType === 'group') {
-      return String(event.over?.id)
+  function moveGroupToColumnTarget(
+    current: DashboardData,
+    activeGroupId: string,
+    targetColumn: BookmarkGroup['column'],
+    overGroupId: string | null,
+  ) {
+    const activeGroup = current.groups.find((group) => group.id === activeGroupId)
+
+    if (!activeGroup) {
+      return null
     }
 
-    if (overType === 'bookmark') {
-      return (event.over?.data.current?.bookmark as Bookmark | undefined)?.groupId ?? null
+    const targetColumnGroups = current.groups
+      .filter((group) => group.column === targetColumn)
+      .sort((left, right) => left.order - right.order)
+    const targetColumnGroupsWithoutActive = targetColumnGroups.filter(
+      (group) => group.id !== activeGroupId,
+    )
+    const targetIndexWithActive = overGroupId
+      ? targetColumnGroups.findIndex((group) => group.id === overGroupId)
+      : targetColumnGroups.length
+    const safeTargetIndex = Math.max(
+      0,
+      Math.min(
+        targetIndexWithActive === -1
+          ? targetColumnGroupsWithoutActive.length
+          : targetIndexWithActive,
+        targetColumnGroupsWithoutActive.length,
+      ),
+    )
+
+    if (
+      activeGroup.column === targetColumn &&
+      targetColumnGroups.findIndex((group) => group.id === activeGroupId) === safeTargetIndex
+    ) {
+      return null
+    }
+
+    targetColumnGroupsWithoutActive.splice(safeTargetIndex, 0, {
+      ...activeGroup,
+      column: targetColumn,
+    })
+
+    const nextGroups =
+      activeGroup.column === targetColumn
+        ? [
+            ...current.groups.filter((group) => group.column !== targetColumn),
+            ...targetColumnGroupsWithoutActive,
+          ]
+        : [
+            ...current.groups.filter(
+              (group) => group.column !== activeGroup.column && group.column !== targetColumn,
+            ),
+            ...current.groups.filter(
+              (group) => group.column === activeGroup.column && group.id !== activeGroupId,
+            ),
+            ...targetColumnGroupsWithoutActive,
+          ]
+
+    return {
+      ...current,
+      groups: normalizeGroupOrders(nextGroups),
+    }
+  }
+
+  function getGroupDropTarget(event: DragOverEvent | DragMoveEvent | DragEndEvent) {
+    const over = event.over
+    const overType = over?.data.current?.type
+
+    if (!over || over.id === event.active.id) {
+      return null
+    }
+
+    if (overType === 'group') {
+      return {
+        id: String(over.id),
+        type: 'group',
+      } satisfies GroupDropTarget
+    }
+
+    if (overType === 'group-column') {
+      const overColumn = over.data.current?.column
+
+      if (!isGroupColumn(overColumn)) {
+        return null
+      }
+
+      return {
+        column: overColumn,
+        id: String(over.id),
+        type: 'group-column',
+      } satisfies GroupDropTarget
     }
 
     return null
   }
 
+  function rememberGroupDropTarget(event: DragOverEvent | DragMoveEvent | DragEndEvent) {
+    const target = getGroupDropTarget(event)
+
+    if (target) {
+      groupDropTargetRef.current = target
+    }
+  }
+
   function previewGroupReorder(event: DragOverEvent) {
     const activeGroupId = String(event.active.id)
-    const overGroupId = getOverGroupId(event)
+    const target = getGroupDropTarget(event)
 
-    if (!overGroupId || activeGroupId === overGroupId) {
+    if (!target) {
       return
     }
+
+    groupDropTargetRef.current = target
 
     setDashboardData((current) => {
       if (!current) {
         return current
       }
 
-      const oldIndex = current.groups.findIndex((group) => group.id === activeGroupId)
-      const newIndex = current.groups.findIndex((group) => group.id === overGroupId)
+      const activeGroup = current.groups.find((group) => group.id === activeGroupId)
+      const overGroup =
+        target.type === 'group'
+          ? current.groups.find((group) => group.id === target.id)
+          : null
+      const targetColumn = overGroup?.column ?? (target.type === 'group-column' ? target.column : null)
 
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+      if (!activeGroup || targetColumn === null || activeGroup.column === targetColumn) {
         return current
       }
 
-      const nextData = {
-        ...current,
-        groups: arrayMove(current.groups, oldIndex, newIndex).map((group, index) => ({
-          ...group,
-          order: index,
-        })),
+      const nextData = moveGroupToColumnTarget(
+        current,
+        activeGroupId,
+        targetColumn,
+        overGroup?.id ?? null,
+      )
+
+      if (!nextData) {
+        return current
       }
 
+      groupDragProjectionRef.current = nextData
       latestDashboardDataRef.current = nextData
       return nextData
     })
@@ -1597,6 +1817,8 @@ export function App() {
   function handleDragCancel() {
     setDraggingGroupId(null)
     setDraggingBookmarkId(null)
+    groupDragProjectionRef.current = null
+    groupDropTargetRef.current = null
 
     if (dragStartDataRef.current) {
       latestDashboardDataRef.current = dragStartDataRef.current
@@ -1614,34 +1836,122 @@ export function App() {
 
     if (dragType === 'bookmark') {
       await handleBookmarkDragEnd(event)
+      groupDragProjectionRef.current = null
+      groupDropTargetRef.current = null
       dragStartDataRef.current = null
       return
     }
 
     if (dragType !== 'group') {
+      groupDragProjectionRef.current = null
+      groupDropTargetRef.current = null
       dragStartDataRef.current = null
       return
     }
 
-    if (!event.over) {
-      if (dragStartDataRef.current) {
+    const activeGroupId = String(event.active.id)
+    const currentData = latestDashboardDataRef.current
+    const activeGroup = currentData?.groups.find((group) => group.id === activeGroupId)
+    const originalGroup = dragStartDataRef.current?.groups.find((group) => group.id === activeGroupId)
+    const hasPreviewMovedAcrossColumns =
+      Boolean(activeGroup) &&
+      Boolean(originalGroup) &&
+      activeGroup?.column !== originalGroup?.column
+    const dropTarget = groupDropTargetRef.current ?? getGroupDropTarget(event)
+
+    if (!dropTarget) {
+      if (hasPreviewMovedAcrossColumns && currentData) {
+        latestDashboardDataRef.current = currentData
+        setDashboardData(currentData)
+        await saveDashboardData(currentData)
+      } else if (dragStartDataRef.current) {
         latestDashboardDataRef.current = dragStartDataRef.current
         setDashboardData(dragStartDataRef.current)
       }
 
+      groupDragProjectionRef.current = null
+      groupDropTargetRef.current = null
       dragStartDataRef.current = null
       return
     }
 
-    const currentData = latestDashboardDataRef.current
-    const activeGroupId = String(event.active.id)
-
-    if (!currentData?.groups.some((group) => group.id === activeGroupId)) {
+    if (!currentData || !activeGroup) {
+      groupDragProjectionRef.current = null
+      groupDropTargetRef.current = null
       dragStartDataRef.current = null
       return
+    }
+
+    if (dropTarget.type === 'group') {
+      const overGroupId = dropTarget.id
+      const overGroup = currentData.groups.find((group) => group.id === overGroupId)
+
+      if (overGroup) {
+        if (activeGroup.column === overGroup.column) {
+          const columnGroups = currentData.groups
+            .filter((group) => group.column === activeGroup.column)
+            .sort((left, right) => left.order - right.order)
+          const oldIndex = columnGroups.findIndex((group) => group.id === activeGroupId)
+          const newIndex = columnGroups.findIndex((group) => group.id === overGroupId)
+
+          if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+            const reorderedColumnGroups = arrayMove(columnGroups, oldIndex, newIndex)
+            const nextData = {
+              ...currentData,
+              groups: normalizeGroupOrders([
+                ...currentData.groups.filter((group) => group.column !== activeGroup.column),
+                ...reorderedColumnGroups,
+              ]),
+            }
+
+            latestDashboardDataRef.current = nextData
+            setDashboardData(nextData)
+            await saveDashboardData(nextData)
+            groupDragProjectionRef.current = null
+            groupDropTargetRef.current = null
+            dragStartDataRef.current = null
+            return
+          }
+        } else {
+          const nextData = moveGroupToColumnTarget(
+            currentData,
+            activeGroupId,
+            overGroup.column,
+            overGroup.id,
+          )
+
+          if (nextData) {
+            latestDashboardDataRef.current = nextData
+            setDashboardData(nextData)
+            await saveDashboardData(nextData)
+            groupDragProjectionRef.current = null
+            groupDropTargetRef.current = null
+            dragStartDataRef.current = null
+            return
+          }
+        }
+      }
+    }
+
+    if (dropTarget.type === 'group-column') {
+      if (activeGroup.column !== dropTarget.column) {
+        const nextData = moveGroupToColumnTarget(currentData, activeGroupId, dropTarget.column, null)
+
+        if (nextData) {
+          latestDashboardDataRef.current = nextData
+          setDashboardData(nextData)
+          await saveDashboardData(nextData)
+          groupDragProjectionRef.current = null
+          groupDropTargetRef.current = null
+          dragStartDataRef.current = null
+          return
+        }
+      }
     }
 
     await saveDashboardData(currentData)
+    groupDragProjectionRef.current = null
+    groupDropTargetRef.current = null
     dragStartDataRef.current = null
   }
 
@@ -1764,6 +2074,25 @@ export function App() {
 
     return counts
   }, new Map<string, number>())
+  const isFilteringBookmarks = search.trim().length > 0 || selectedTags.length > 0
+  const visibleGroupIds = isFilteringBookmarks
+    ? bookmarks.reduce((groupIds, bookmark) => {
+        if (matchesBookmark(search, selectedTags, tagFilterMode, bookmark)) {
+          groupIds.add(bookmark.groupId)
+        }
+
+        return groupIds
+      }, new Set<string>())
+    : null
+  const visibleGroups = visibleGroupIds
+    ? groups.filter((group) => visibleGroupIds.has(group.id))
+    : groups
+  const visibleGroupsByColumn = GROUP_COLUMNS.map((column) => ({
+    column,
+    groups: visibleGroups
+      .filter((group) => group.column === column)
+      .sort((left, right) => left.order - right.order),
+  }))
   const allTags = Array.from(tagCounts.keys()).sort(
     (left, right) => (tagCounts.get(right) ?? 0) - (tagCounts.get(left) ?? 0) || left.localeCompare(right),
   )
@@ -2064,58 +2393,114 @@ export function App() {
             onDragStart={handleDragStart}
             sensors={sensors}
           >
-            <SortableContext
-              items={groups.map((group) => group.id)}
-              strategy={isGridEditMode ? verticalListSortingStrategy : rectSortingStrategy}
+            <main
+              className={isGridEditMode ? 'grid-edit-board' : 'group-grid'}
             >
-              <main
-                className={isGridEditMode ? 'grid-edit-board' : 'group-grid'}
-              >
-                {groups.map((group) => {
-                  const groupBookmarks = bookmarks
-                    .filter((bookmark) => bookmark.groupId === group.id)
-                    .sort((left, right) => left.order - right.order)
+              {visibleGroupsByColumn.map(({ column, groups: columnGroups }) => {
+                const columnLabel = getGroupColumnLabel(column)
 
-                  return isGridEditMode ? (
-                    <SortableGridGroupSection
-                      group={group}
-                      groupBookmarks={groupBookmarks}
-                      groupSortingDisabled={Boolean(draggingBookmarkId)}
-                      key={group.id}
-                      onCloseTagPicker={closeGridTagPicker}
-                      onDeleteBookmark={(bookmark) => {
-                        void handleGridBookmarkDelete(bookmark)
-                      }}
-                      onEditBookmarkField={(bookmark, updates) => {
-                        void handleGridBookmarkFieldUpdate(bookmark, updates)
-                      }}
-                      onEditGroup={openEditGroup}
-                      onOpenGroupBookmarks={openGroupBookmarks}
-                      onOpenTagPicker={openGridTagPicker}
-                      search={search}
-                      selectedTags={selectedTags}
-                      tagFilterMode={tagFilterMode}
-                    />
-                  ) : (
-                    <SortableGroupCard
-                      group={group}
-                      bookmarkSortingDisabled={Boolean(draggingGroupId)}
-                      groupBookmarks={groupBookmarks}
-                      groupSortingDisabled={Boolean(draggingBookmarkId)}
-                      key={group.id}
-                      locked={locked}
-                      onEditBookmark={openEditBookmark}
-                      onEditGroup={openEditGroup}
-                      onOpenGroupBookmarks={openGroupBookmarks}
-                      search={search}
-                      selectedTags={selectedTags}
-                      tagFilterMode={tagFilterMode}
-                      suppressBookmarkTransforms={isCrossGroupBookmarkDrag}
-                    />
+                if (isGridEditMode) {
+                  if (isFilteringBookmarks && columnGroups.length === 0) {
+                    return null
+                  }
+
+                  const isCollapsed = collapsedGridColumns.includes(column)
+
+                  return (
+                    <GroupColumnDropZone
+                      className={`grid-edit-column-section ${isCollapsed ? 'is-collapsed' : ''}`}
+                      column={column}
+                      key={column}
+                    >
+                      <button
+                        className="grid-edit-column-toggle"
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        onClick={() => toggleGridColumn(column)}
+                      >
+                        <span className="grid-edit-column-title">{columnLabel}</span>
+                        <span className="grid-edit-column-meta">
+                          <span>{columnGroups.length}</span>
+                          <ChevronIcon expanded={!isCollapsed} />
+                        </span>
+                      </button>
+
+                      {!isCollapsed ? (
+                        <SortableContext
+                          items={columnGroups.map((group) => group.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="grid-edit-column-groups">
+                            {columnGroups.map((group) => {
+                              const groupBookmarks = bookmarks
+                                .filter((bookmark) => bookmark.groupId === group.id)
+                                .sort((left, right) => left.order - right.order)
+
+                              return (
+                                <SortableGridGroupSection
+                                  group={group}
+                                  groupBookmarks={groupBookmarks}
+                                  groupSortingDisabled={Boolean(draggingBookmarkId)}
+                                  key={group.id}
+                                  onCloseTagPicker={closeGridTagPicker}
+                                  onDeleteBookmark={(bookmark) => {
+                                    void handleGridBookmarkDelete(bookmark)
+                                  }}
+                                  onEditBookmarkField={(bookmark, updates) => {
+                                    void handleGridBookmarkFieldUpdate(bookmark, updates)
+                                  }}
+                                  onEditGroup={openEditGroup}
+                                  onOpenGroupBookmarks={openGroupBookmarks}
+                                  onOpenTagPicker={openGridTagPicker}
+                                  search={search}
+                                  selectedTags={selectedTags}
+                                  tagFilterMode={tagFilterMode}
+                                />
+                              )
+                            })}
+                          </div>
+                        </SortableContext>
+                      ) : null}
+                    </GroupColumnDropZone>
                   )
-                })}
-              </main>
-            </SortableContext>
+                }
+
+                return (
+                  <GroupColumnDropZone className="group-column" column={column} key={column}>
+                    <SortableContext
+                      items={columnGroups.map((group) => group.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="group-column-stack">
+                        {columnGroups.map((group) => {
+                          const groupBookmarks = bookmarks
+                            .filter((bookmark) => bookmark.groupId === group.id)
+                            .sort((left, right) => left.order - right.order)
+
+                          return (
+                            <SortableGroupCard
+                              group={group}
+                              bookmarkSortingDisabled={Boolean(draggingGroupId)}
+                              groupBookmarks={groupBookmarks}
+                              groupSortingDisabled={Boolean(draggingBookmarkId)}
+                              key={group.id}
+                              locked={locked}
+                              onEditBookmark={openEditBookmark}
+                              onEditGroup={openEditGroup}
+                              onOpenGroupBookmarks={openGroupBookmarks}
+                              search={search}
+                              selectedTags={selectedTags}
+                              tagFilterMode={tagFilterMode}
+                              suppressBookmarkTransforms={isCrossGroupBookmarkDrag}
+                            />
+                          )
+                        })}
+                      </div>
+                    </SortableContext>
+                  </GroupColumnDropZone>
+                )
+              })}
+            </main>
 
           <DragOverlay adjustScale={false} dropAnimation={draggingGroupId ? null : undefined}>
             {draggingGroupId ? (
