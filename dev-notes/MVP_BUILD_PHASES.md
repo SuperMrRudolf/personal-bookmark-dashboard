@@ -1,6 +1,11 @@
 # MVP Build Plan
 
-This is the practical build plan for the Personal Bookmark Dashboard Chrome Extension. It replaces the older phase order and should be treated as the working roadmap from this point forward.
+This is the completed v1 build plan for the Personal Bookmark Dashboard Chrome Extension. It is kept as historical implementation context rather than an active roadmap.
+
+Current release note:
+- the optional support page is now live at `https://personal-bookmark-dashboard.pages.dev/donate`
+- the extension links to that page from the dashboard menu
+- the remaining work is Chrome Web Store submission
 
 ## Product Summary
 
@@ -124,25 +129,17 @@ Polish candidates:
 - empty-state messaging while filtered
 - improved spacing and visual hierarchy
 
-### 5. Core Dashboard Visual System - In Progress
+### 5. Core Dashboard Visual System - Complete
 
 Goal: make the dashboard feel intentional, compact, and close to the desired LumiList-inspired direction.
 
-Current state:
-- functional dark scaffold exists
-- group cards, bookmark rows, toolbar, tags, and forms are present
-- unlocked grid edit mode now exists for stacked per-group inline bookmark editing
-- current look is not final
-
-Still to do:
-- redesign visual language after core behavior stabilizes
-- compact bookmark rows further
-- improve typography, spacing, hover states, and card treatment
-- replace temporary top panels with small popups
-- keep refining grid edit popover placement and density from real-world usage
-- make desktop and mobile layouts feel deliberate
-- improve favicon fallback visuals
-- improve empty states
+Completed:
+- final dark dashboard layout is in place
+- group cards, bookmark rows, toolbar, tags, and compact forms are present
+- unlocked grid edit mode exists for stacked per-group inline bookmark editing
+- local font assets are bundled
+- local app icon mapping is bundled with favicon fallback for uncatalogued sites
+- empty and filtered states are usable for v1
 
 ### 6. Drag-And-Drop And Locking - Complete
 
@@ -236,37 +233,25 @@ Status:
 - implementation complete
 - user-tested in Chrome
 
-### 9. Polish And Hardening
+### 9. Polish And Hardening - Complete For v1
 
 Goal: make the extension feel finished and safe for daily use.
 
-Polish:
-- final LumiList-inspired visual pass
-- refine compact popup forms
-- improved motion/hover/focus states
-- better empty states
-- better tag/filter reset states
-- improved responsive layout
-
-Hardening:
-- test larger bookmark counts
-- test empty groups
-- test duplicate URLs
-- test invalid URLs
-- test broken favicon URLs
-- test invalid import files
-- dependency audit warning resolved with a scoped Rollup override for `@crxjs/vite-plugin`
-- improve accessibility labels, focus states, and contrast
-- clean up code structure and comments
-- update README with install/build/use instructions
+Completed:
+- final v1 visual pass is accepted
+- compact popup forms and grid edit flow are accepted for v1
+- empty, filtered, locked, and unlocked states are accepted for v1
+- dependency audit warning was resolved with a scoped Rollup override for `@crxjs/vite-plugin`
+- production build passes
+- unpacked extension has been tested in Chrome
+- Chrome Web Store submission notes and packaging flow exist
 
 ## Current Recommended Next Step
 
-Continue with **9. Polish And Hardening**.
+The MVP build is complete.
 
-Recommended order inside polish:
-1. UI/visual polish in small slices so drag behavior stays stable.
-2. Refine the compact popup forms with better positioning, focus handling, and final styling.
-3. Run larger-dataset and edge-case testing.
-4. Expand README with install, build, usage, backup, and shortcut instructions.
-- hardening/dependency maintenance
+Remaining pre-store work:
+1. Add the optional donation/support link after the landing page is live.
+2. Host the privacy policy publicly.
+3. Run the final manual Chrome test pass.
+4. Generate the upload ZIP with `npm run store:package`.

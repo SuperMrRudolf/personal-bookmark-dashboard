@@ -13,7 +13,7 @@ The extension stores the following data locally in your browser:
 - bookmark groups
 - bookmark tags
 - dashboard layout order
-- lock/unlock setting
+- dashboard settings, including lock/unlock state and search sidebar width
 - temporary quick-save draft data for the current page when you use the quick-save command
 
 This data is stored using `chrome.storage.local`.
@@ -22,13 +22,15 @@ This data is stored using `chrome.storage.local`.
 
 The extension uses this data only to provide its bookmark dashboard features, including grouping, search, filtering, drag-and-drop organization, quick-save, and backup/export.
 
+When you export a backup, the extension creates a JSON file on your device. When you import a backup, the extension reads only the JSON file you select.
+
 ## Data Sharing
 
 The extension does not sell, transfer, or share your bookmark data with third parties.
 
 The extension does not send your saved bookmark data to a developer-owned server.
 
-Some bookmark favicons may be loaded from the bookmarked website or from a favicon service when no bundled local icon is available. This is used only to display bookmark icons.
+Some bookmark favicons may be loaded from Google's favicon service when no bundled local icon is available. This is used only to display bookmark icons.
 
 ## Permissions
 

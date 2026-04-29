@@ -70,6 +70,7 @@ const DEFAULT_SEARCH_SIDEBAR_WIDTH = 300
 const MIN_SEARCH_SIDEBAR_WIDTH = 220
 const MAX_SEARCH_SIDEBAR_WIDTH = 520
 const DESKTOP_SEARCH_SIDEBAR_RIGHT = 14
+const DONATION_URL = 'https://personal-bookmark-dashboard.pages.dev/donate'
 
 function createEmptyGroupLayout(): GroupLayout {
   return {
@@ -1373,6 +1374,17 @@ export function App() {
     window.open(shortcutUrl, '_blank', 'noopener,noreferrer')
   }
 
+  function openDonationPage() {
+    setIsActionMenuOpen(false)
+
+    if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+      void chrome.tabs.create({ url: DONATION_URL })
+      return
+    }
+
+    window.open(DONATION_URL, '_blank', 'noopener,noreferrer')
+  }
+
   async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
 
@@ -2285,6 +2297,9 @@ export function App() {
                 </button>
                 <button type="button" onClick={openShortcutSettings}>
                   Shortcuts
+                </button>
+                <button type="button" onClick={openDonationPage}>
+                  Donate
                 </button>
               </div>
             ) : null}

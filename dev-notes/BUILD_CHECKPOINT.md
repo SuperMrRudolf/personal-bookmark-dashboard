@@ -1,7 +1,7 @@
 # Personal Bookmark Dashboard - Build Checkpoint
 
 ## Current phase
-Phase 9 - Polish and hardening in progress
+v1 submitted to the Chrome Web Store; awaiting review
 
 ## What is already finished
 - Initial build direction is defined
@@ -78,6 +78,10 @@ Phase 9 - Polish and hardening in progress
 - unpacked extension loads successfully in Chrome
 - opening a new tab shows the dashboard
 - clicking the extension icon opens the dashboard
+- Chrome Web Store submission kit exists in `store-listing/`
+- Chrome Web Store upload ZIP can be generated with `npm run store:package`
+- real Chrome Web Store screenshots have replaced the generated placeholder screenshots
+- dashboard menu now includes a live `Donate` link that opens the hosted support page
 
 ## Exact stack decisions
 - Chrome extension, Manifest V3
@@ -140,12 +144,9 @@ src/
 - Dashboard shell UI and storage helper
 
 ## What still needs doing
-- refine the LumiList-inspired visual design
-- refine compact popup placement, focus behavior, and visual polish
-- keep tuning grid edit spacing and popover placement against larger real bookmark datasets
-- replace remaining fallback/runtime icons with better local official assets where possible
-- run a final larger-dataset drag/search/import/export pass
-- expand the README further once feature-level setup and usage details exist
+- wait for Chrome Web Store review results
+- address any review feedback if Google requests changes
+- decide whether to keep the GitHub-hosted privacy policy URL long-term or move it to a dedicated website page later
 
 ## Notes
 - Working inside WSL Ubuntu
@@ -166,3 +167,14 @@ src/
 - search sidebar width is user-resizable from the divider, persisted in dashboard settings, and drives the dashboard content margin without lag while resizing
 - created `dev-notes/DEEP_RESEARCHER_PROMPT.md` as a research handoff for the dnd-kit multi-container investigation
 - latest `npm run build` passed after the current changes
+
+## 2026-04-29 release-prep checkpoint
+- project status changed from active build to v1 feature-complete
+- donation/support page is live at `https://personal-bookmark-dashboard.pages.dev/donate`
+- dashboard menu now links to the live donation/support page
+- store listing assets are now real screenshots supplied by the project owner
+- `npm run store:assets` is now treated as a placeholder generator only and should not be used over real assets
+- final manual Chrome sanity pass is complete
+- final upload ZIP was regenerated with `npm run store:package`
+- privacy policy was submitted using the public GitHub URL for `PRIVACY.md`
+- the extension has been submitted to the Chrome Web Store for review

@@ -4,13 +4,15 @@
 **Personal Bookmark Dashboard Chrome Extension**
 
 ## Version
-**v1.0 (Locked Scope)**
+**v1.0 (Feature-Complete Scope)**
 
 ## Product Owner
 User
 
 ## Document Purpose
 Define the scope, behavior, UX, data model, and technical requirements for a personal Chrome extension that replaces the New Tab page with a dark-mode bookmark dashboard inspired by LumiList’s visual style, while remaining simpler and single-page in v1.
+
+Status: v1 is considered feature-complete. The donation/support page is live, the extension links to it from the dashboard menu, and the remaining work is Chrome Web Store submission.
 
 ---
 
@@ -102,6 +104,9 @@ The following are **out of scope** for v1:
 - backend or user account system
 - automatic cloud backup integration
 - merge-mode import
+- paid feature gating
+
+An optional donation/support link is allowed for v1 as long as the extension remains fully usable without payment.
 
 ---
 
