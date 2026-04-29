@@ -159,6 +159,10 @@ src/
 - grid edit mode renders collapsible column sections and hides empty filtered sections
 - search/tag filtering hides groups with no visible matching bookmarks while preserving hidden bookmark positioning inside visible groups
 - bookmark drag-and-drop still works well within and across groups
-- group drag-and-drop across the fixed columns is still unresolved: live movement can look correct, but release placement can jump to a different position
-- created `dev-notes/DEEP_RESEARCHER_PROMPT.md` as a research handoff for investigating the dnd-kit multi-container group sorting issue
+- group drag-and-drop now uses a draft `column -> group ids` layout during drag and persists that exact layout on release
+- group drag shows a green placeholder slot, supports same-column and cross-column movement, and avoids dnd-kit transform feedback during group layout changes
+- group reordering is disabled while search/tag filters are active; bookmark dragging remains available
+- closing the search sidebar clears search text, selected tags, and resets tag mode
+- search sidebar width is user-resizable from the divider, persisted in dashboard settings, and drives the dashboard content margin without lag while resizing
+- created `dev-notes/DEEP_RESEARCHER_PROMPT.md` as a research handoff for the dnd-kit multi-container investigation
 - latest `npm run build` passed after the current changes

@@ -21,6 +21,7 @@ export type BookmarkGroup = {
 
 export type DashboardSettings = {
   locked: boolean
+  searchSidebarWidth: number
 }
 
 export type DashboardData = {

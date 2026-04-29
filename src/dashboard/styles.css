@@ -3,6 +3,7 @@
   font-family:
     "Outfit", "Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif;
   --search-toggle-right: 67px;
+  --search-sidebar-width: 300px;
   --page-ink: #08111d;
   --page-deep: #0d1826;
   --page-night: #111f31;
@@ -461,8 +462,12 @@ a {
   transition: margin-right 220ms ease;
 }
 
+.shell.is-resizing-search-sidebar .dashboard-layout {
+  transition: none;
+}
+
 .dashboard-layout.is-search-open {
-  margin-right: 304px;
+  margin-right: calc(var(--search-sidebar-width) + 4px);
   padding-right: 0;
   padding-left: 0;
 }
@@ -673,8 +678,14 @@ a {
 }
 
 .group-card.is-dragging {
-  opacity: 0;
+  border-color: rgba(124, 224, 195, 0.42);
+  background: rgba(124, 224, 195, 0.06);
+  opacity: 1;
   box-shadow: none;
+}
+
+.group-card.is-dragging > * {
+  visibility: hidden;
 }
 
 .grid-edit-group {
@@ -1047,7 +1058,7 @@ a {
   right: 14px;
   bottom: 20px;
   z-index: 18;
-  width: min(300px, calc(100vw - 28px));
+  width: min(var(--search-sidebar-width), calc(100vw - 28px));
   border-right: 0;
   border-left: 1px solid rgba(182, 215, 255, 0.12);
   background: rgba(32, 36, 48, 0.96);
@@ -1067,6 +1078,36 @@ a {
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
+}
+
+.search-sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  z-index: 2;
+  width: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.search-sidebar-resize-handle::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  content: "";
+  background: transparent;
+  transition: background-color 160ms ease;
+}
+
+.search-sidebar-resize-handle:hover::before,
+.search-sidebar-resize-handle:focus-visible::before,
+.search-sidebar.is-resizing .search-sidebar-resize-handle::before {
+  background: rgba(124, 224, 195, 0.5);
 }
 
 .search-sidebar-toggle {
@@ -1205,6 +1246,10 @@ a {
     right: 10px;
     bottom: 16px;
     width: min(300px, calc(100vw - 20px));
+  }
+
+  .search-sidebar-resize-handle {
+    display: none;
   }
 
   .search-sidebar-toggle {

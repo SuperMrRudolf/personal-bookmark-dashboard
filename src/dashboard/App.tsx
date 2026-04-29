@@ -5,6 +5,7 @@ import {
   closestCenter,
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   pointerWithin,
   PointerSensor,
   useDroppable,
@@ -28,7 +29,9 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -55,29 +58,167 @@ type UndoDeleteToast = {
   restoreData: DashboardData
 }
 
-type GroupDropTarget =
-  | {
-      id: string
-      type: 'group'
-    }
-  | {
-      column: BookmarkGroup['column']
-      id: string
-      type: 'group-column'
-    }
+type GroupColumnId = BookmarkGroup['column']
+type GroupLayout = Record<GroupColumnId, string[]>
+type GroupPlacement = {
+  column: GroupColumnId
+  index: number
+}
 
-const GROUP_COLUMNS: BookmarkGroup['column'][] = [0, 1, 2, 3]
+const GROUP_COLUMNS: GroupColumnId[] = [0, 1, 2, 3]
+const DEFAULT_SEARCH_SIDEBAR_WIDTH = 300
+const MIN_SEARCH_SIDEBAR_WIDTH = 220
+const MAX_SEARCH_SIDEBAR_WIDTH = 520
+const DESKTOP_SEARCH_SIDEBAR_RIGHT = 14
 
-function getGroupColumnLabel(column: BookmarkGroup['column']) {
+function createEmptyGroupLayout(): GroupLayout {
+  return {
+    0: [],
+    1: [],
+    2: [],
+    3: [],
+  }
+}
+
+function cloneGroupLayout(layout: GroupLayout): GroupLayout {
+  return {
+    0: [...layout[0]],
+    1: [...layout[1]],
+    2: [...layout[2]],
+    3: [...layout[3]],
+  }
+}
+
+function getGroupColumnLabel(column: GroupColumnId) {
   return `Column ${column + 1}`
 }
 
-function getGroupColumnDropId(column: BookmarkGroup['column']) {
-  return `group-column-${column}`
+function toGroupDndId(groupId: string) {
+  return `group:${groupId}`
 }
 
-function isGroupColumn(value: unknown): value is BookmarkGroup['column'] {
-  return typeof value === 'number' && GROUP_COLUMNS.includes(value as BookmarkGroup['column'])
+function fromGroupDndId(dndId: string) {
+  return dndId.startsWith('group:') ? dndId.slice('group:'.length) : dndId
+}
+
+function toBookmarkDndId(bookmarkId: string) {
+  return `bookmark:${bookmarkId}`
+}
+
+function fromBookmarkDndId(dndId: string) {
+  return dndId.startsWith('bookmark:') ? dndId.slice('bookmark:'.length) : dndId
+}
+
+function getGroupColumnDropId(column: GroupColumnId) {
+  return `group-column:${column}`
+}
+
+function isGroupColumn(value: unknown): value is GroupColumnId {
+  return typeof value === 'number' && GROUP_COLUMNS.includes(value as GroupColumnId)
+}
+
+function groupsToLayout(groups: BookmarkGroup[]): GroupLayout {
+  return GROUP_COLUMNS.reduce((layout, column) => {
+    layout[column] = groups
+      .filter((group) => group.column === column)
+      .sort((left, right) => left.order - right.order)
+      .map((group) => group.id)
+
+    return layout
+  }, createEmptyGroupLayout())
+}
+
+function layoutToGroups(previousGroups: BookmarkGroup[], layout: GroupLayout): BookmarkGroup[] {
+  const groupsById = new Map(previousGroups.map((group) => [group.id, group]))
+  const usedGroupIds = new Set<string>()
+  const nextGroups = GROUP_COLUMNS.flatMap((column) =>
+    layout[column]
+      .map((groupId, order) => {
+        const group = groupsById.get(groupId)
+
+        if (!group) {
+          return null
+        }
+
+        usedGroupIds.add(groupId)
+
+        return {
+          ...group,
+          column,
+          order,
+        }
+      })
+      .filter((group): group is BookmarkGroup => Boolean(group)),
+  )
+
+  const missingGroups = previousGroups.filter((group) => !usedGroupIds.has(group.id))
+
+  if (missingGroups.length === 0) {
+    return nextGroups
+  }
+
+  return GROUP_COLUMNS.flatMap((column) =>
+    [
+      ...nextGroups.filter((group) => group.column === column),
+      ...missingGroups.filter((group) => group.column === column),
+    ].map((group, order) => ({
+      ...group,
+      order,
+    })),
+  )
+}
+
+function findGroupColumn(layout: GroupLayout, groupId: string) {
+  return GROUP_COLUMNS.find((column) => layout[column].includes(groupId)) ?? null
+}
+
+function moveGroupToPlacement(
+  layout: GroupLayout,
+  groupId: string,
+  placement: GroupPlacement,
+): GroupLayout {
+  const sourceColumn = findGroupColumn(layout, groupId)
+
+  if (sourceColumn === null) {
+    return layout
+  }
+
+  const withoutActive = GROUP_COLUMNS.reduce((nextLayout, column) => {
+    nextLayout[column] = layout[column].filter((id) => id !== groupId)
+    return nextLayout
+  }, createEmptyGroupLayout())
+  const targetGroups = [...withoutActive[placement.column]]
+  const safeIndex = Math.max(0, Math.min(placement.index, targetGroups.length))
+
+  targetGroups.splice(safeIndex, 0, groupId)
+
+  return {
+    ...withoutActive,
+    [placement.column]: targetGroups,
+  }
+}
+
+function layoutsEqual(left: GroupLayout, right: GroupLayout) {
+  return GROUP_COLUMNS.every(
+    (column) =>
+      left[column].length === right[column].length &&
+      left[column].every((groupId, index) => groupId === right[column][index]),
+  )
+}
+
+function clampSearchSidebarWidth(width: number) {
+  const viewportMax =
+    typeof window === 'undefined'
+      ? MAX_SEARCH_SIDEBAR_WIDTH
+      : Math.max(
+          MIN_SEARCH_SIDEBAR_WIDTH,
+          window.innerWidth - DESKTOP_SEARCH_SIDEBAR_RIGHT * 2,
+        )
+
+  return Math.max(
+    MIN_SEARCH_SIDEBAR_WIDTH,
+    Math.min(MAX_SEARCH_SIDEBAR_WIDTH, viewportMax, Math.round(width)),
+  )
 }
 
 function matchesBookmark(
@@ -249,6 +390,7 @@ function hasQuickSaveIntent() {
 }
 
 let lastPointerCoordinates: { x: number; y: number } | null = null
+let latestGroupLayoutForCollision = createEmptyGroupLayout()
 
 const dashboardCollisionDetection: CollisionDetection = (args) => {
   lastPointerCoordinates = args.pointerCoordinates ?? null
@@ -289,8 +431,11 @@ const dashboardCollisionDetection: CollisionDetection = (args) => {
 
     if (columnPointerCollisions.length > 0) {
       const overColumn = columnPointerCollisions[0]?.data?.droppableContainer.data.current?.column
+      const groupIdsInColumn = isGroupColumn(overColumn)
+        ? new Set(latestGroupLayoutForCollision[overColumn].map(toGroupDndId))
+        : new Set<string>()
       const columnGroupContainers = groupContainers.filter(
-        (container) => container.data.current?.group?.column === overColumn,
+        (container) => groupIdsInColumn.has(String(container.id)) && container.id !== args.active.id,
       )
       const columnGroupCollisions = closestCenter({
         ...args,
@@ -317,7 +462,7 @@ const dashboardCollisionDetection: CollisionDetection = (args) => {
   })
 
   if (groupPointerCollisions.length > 0) {
-    const targetGroupId = String(groupPointerCollisions[0].id)
+    const targetGroupId = groupPointerCollisions[0].data?.droppableContainer.data.current?.group?.id
     const targetGroupBookmarkContainers = bookmarkContainers.filter(
       (container) => container.data.current?.bookmark?.groupId === targetGroupId,
     )
@@ -390,7 +535,7 @@ function GroupCardContent({
       </div>
 
       <SortableContext
-        items={groupBookmarks.map((bookmark) => bookmark.id)}
+        items={groupBookmarks.map((bookmark) => toBookmarkDndId(bookmark.id))}
         strategy={verticalListSortingStrategy}
       >
         <div className="bookmark-list">
@@ -419,19 +564,23 @@ function GroupCardContent({
 type SortableGroupCardProps = GroupCardContentProps & {
   locked: boolean
   groupSortingDisabled: boolean
+  suppressTransform: boolean
 }
 
 function GroupColumnDropZone({
   children,
   className,
   column,
+  disabled = false,
 }: {
   children: ReactNode
   className: string
-  column: BookmarkGroup['column']
+  column: GroupColumnId
+  disabled?: boolean
 }) {
   const { setNodeRef } = useDroppable({
     id: getGroupColumnDropId(column),
+    disabled,
     data: {
       column,
       type: 'group-column',
@@ -441,7 +590,7 @@ function GroupColumnDropZone({
   return (
     <section
       className={className}
-      data-group-column={column}
+      data-group-column={disabled ? undefined : column}
       ref={setNodeRef}
     >
       {children}
@@ -451,16 +600,16 @@ function GroupColumnDropZone({
 
 function SortableGroupCard(props: SortableGroupCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.group.id,
-    disabled: props.locked,
+    id: toGroupDndId(props.group.id),
+    disabled: props.locked || props.groupSortingDisabled,
     data: {
       group: props.group,
       type: 'group',
     },
   })
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: props.suppressTransform ? undefined : CSS.Transform.toString(transform),
+    transition: props.suppressTransform ? undefined : transition,
   }
 
   return (
@@ -671,7 +820,7 @@ function SortableGridBookmarkRow({
   const visible = matchesBookmark(search, selectedTags, tagFilterMode, bookmark)
   const { src, fallbackSrc } = getBookmarkIconSources(bookmark.url)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: bookmark.id,
+    id: toBookmarkDndId(bookmark.id),
     disabled: !visible,
     data: {
       bookmark,
@@ -804,7 +953,7 @@ function GridGroupContent({
       </div>
 
       <SortableContext
-        items={groupBookmarks.map((bookmark) => bookmark.id)}
+        items={groupBookmarks.map((bookmark) => toBookmarkDndId(bookmark.id))}
         strategy={verticalListSortingStrategy}
       >
         <div className="grid-edit-table">
@@ -841,11 +990,12 @@ function GridGroupContent({
 
 type SortableGridGroupSectionProps = GridGroupContentProps & {
   groupSortingDisabled: boolean
+  suppressTransform: boolean
 }
 
 function SortableGridGroupSection(props: SortableGridGroupSectionProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.group.id,
+    id: toGroupDndId(props.group.id),
     disabled: props.groupSortingDisabled,
     data: {
       group: props.group,
@@ -853,8 +1003,8 @@ function SortableGridGroupSection(props: SortableGridGroupSectionProps) {
     },
   })
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: props.suppressTransform ? undefined : CSS.Transform.toString(transform),
+    transition: props.suppressTransform ? undefined : transition,
   }
 
   return (
@@ -889,7 +1039,7 @@ function SortableBookmarkRow({
 }: SortableBookmarkRowProps) {
   const visible = matchesBookmark(search, selectedTags, tagFilterMode, bookmark)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: bookmark.id,
+    id: toBookmarkDndId(bookmark.id),
     disabled: locked || !visible,
     data: {
       bookmark,
@@ -926,7 +1076,10 @@ export function App() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>('and')
   const [isSearchSidebarOpen, setIsSearchSidebarOpen] = useState(false)
+  const [searchSidebarWidth, setSearchSidebarWidth] = useState(DEFAULT_SEARCH_SIDEBAR_WIDTH)
+  const [isResizingSearchSidebar, setIsResizingSearchSidebar] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [groupLayout, setGroupLayout] = useState<GroupLayout>(createEmptyGroupLayout)
   const [isAddingGroup, setIsAddingGroup] = useState(false)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [isBookmarkFormOpen, setIsBookmarkFormOpen] = useState(false)
@@ -948,9 +1101,11 @@ export function App() {
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [draggingBookmarkId, setDraggingBookmarkId] = useState<string | null>(null)
   const dragStartDataRef = useRef<DashboardData | null>(null)
-  const groupDragProjectionRef = useRef<DashboardData | null>(null)
-  const groupDropTargetRef = useRef<GroupDropTarget | null>(null)
+  const groupLayoutRef = useRef<GroupLayout>(groupLayout)
+  const beforeGroupDragLayoutRef = useRef<GroupLayout | null>(null)
+  const activeGroupIdRef = useRef<string | null>(null)
   const latestDashboardDataRef = useRef<DashboardData | null>(null)
+  const searchSidebarWidthRef = useRef(searchSidebarWidth)
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const actionMenuRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(
@@ -973,6 +1128,31 @@ export function App() {
   useEffect(() => {
     latestDashboardDataRef.current = dashboardData
   }, [dashboardData])
+
+  useEffect(() => {
+    searchSidebarWidthRef.current = searchSidebarWidth
+  }, [searchSidebarWidth])
+
+  useEffect(() => {
+    if (!dashboardData) {
+      return
+    }
+
+    setSearchSidebarWidth(clampSearchSidebarWidth(dashboardData.settings.searchSidebarWidth))
+  }, [dashboardData?.settings.searchSidebarWidth])
+
+  useEffect(() => {
+    groupLayoutRef.current = groupLayout
+    latestGroupLayoutForCollision = groupLayout
+  }, [groupLayout])
+
+  useEffect(() => {
+    if (!dashboardData || activeGroupIdRef.current) {
+      return
+    }
+
+    setGroupLayout(groupsToLayout(dashboardData.groups))
+  }, [dashboardData?.groups])
 
   useEffect(() => {
     if (!undoDeleteToast) {
@@ -1082,6 +1262,62 @@ export function App() {
     await saveDashboardData(nextData)
   }
 
+  async function saveSearchSidebarWidth(width: number) {
+    const currentData = latestDashboardDataRef.current
+
+    if (!currentData) {
+      return
+    }
+
+    const nextData = {
+      ...currentData,
+      settings: {
+        ...currentData.settings,
+        searchSidebarWidth: width,
+      },
+    }
+
+    latestDashboardDataRef.current = nextData
+    setDashboardData(nextData)
+    await saveDashboardData(nextData)
+  }
+
+  function handleSearchSidebarResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setIsResizingSearchSidebar(true)
+  }
+
+  function handleSearchSidebarResizeMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!isResizingSearchSidebar) {
+      return
+    }
+
+    const nextWidth = clampSearchSidebarWidth(
+      window.innerWidth - event.clientX - DESKTOP_SEARCH_SIDEBAR_RIGHT,
+    )
+
+    searchSidebarWidthRef.current = nextWidth
+    setSearchSidebarWidth(nextWidth)
+  }
+
+  function handleSearchSidebarResizeEnd(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!isResizingSearchSidebar) {
+      return
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    setIsResizingSearchSidebar(false)
+    void saveSearchSidebarWidth(searchSidebarWidthRef.current)
+  }
+
   function clearQuickSaveIntentState() {
     if (!isQuickSaveIntent) {
       return
@@ -1160,8 +1396,7 @@ export function App() {
       await saveDashboardData(importedData)
       setDashboardData(importedData)
       closeForms()
-      setSearch('')
-      setSelectedTags([])
+      clearSearchFilters()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import failed.'
 
@@ -1255,6 +1490,22 @@ export function App() {
         ? currentTags.filter((currentTag) => currentTag !== tag)
         : [...currentTags, tag],
     )
+  }
+
+  function clearSearchFilters() {
+    setSearch('')
+    setSelectedTags([])
+    setTagFilterMode('and')
+  }
+
+  function toggleSearchSidebar() {
+    setIsSearchSidebarOpen((isOpen) => {
+      if (isOpen) {
+        clearSearchFilters()
+      }
+
+      return !isOpen
+    })
   }
 
   function toggleGridColumn(column: BookmarkGroup['column']) {
@@ -1468,14 +1719,20 @@ export function App() {
     dragStartDataRef.current = latestDashboardDataRef.current ?? dashboardData
 
     if (dragType === 'group') {
-      groupDragProjectionRef.current = null
-      groupDropTargetRef.current = null
-      setDraggingGroupId(String(event.active.id))
+      if (isFilteringBookmarks) {
+        dragStartDataRef.current = null
+        return
+      }
+
+      const activeGroupId = fromGroupDndId(String(event.active.id))
+      beforeGroupDragLayoutRef.current = cloneGroupLayout(groupLayoutRef.current)
+      activeGroupIdRef.current = activeGroupId
+      setDraggingGroupId(activeGroupId)
       return
     }
 
     if (dragType === 'bookmark') {
-      setDraggingBookmarkId(String(event.active.id))
+      setDraggingBookmarkId(fromBookmarkDndId(String(event.active.id)))
     }
   }
 
@@ -1483,7 +1740,7 @@ export function App() {
     const dragType = event.active.data.current?.type
 
     if (dragType === 'group') {
-      previewGroupReorder(event)
+      updateGroupDraftFromPointer()
       return
     }
 
@@ -1496,7 +1753,7 @@ export function App() {
     const dragType = event.active.data.current?.type
 
     if (dragType === 'group') {
-      rememberGroupDropTarget(event)
+      updateGroupDraftFromPointer()
       return
     }
 
@@ -1505,168 +1762,75 @@ export function App() {
     }
   }
 
-  function normalizeGroupOrders(groupsToNormalize: BookmarkGroup[]) {
-    return GROUP_COLUMNS.flatMap((column) =>
-      groupsToNormalize
-        .filter((group) => group.column === column)
-        .sort((left, right) => left.order - right.order)
-        .map((group, index) => ({
-          ...group,
-          order: index,
-        })),
-    )
-  }
+  function getGroupPlacementFromPointer(activeGroupId: string) {
+    const pointer = lastPointerCoordinates
 
-  function moveGroupToColumnTarget(
-    current: DashboardData,
-    activeGroupId: string,
-    targetColumn: BookmarkGroup['column'],
-    overGroupId: string | null,
-  ) {
-    const activeGroup = current.groups.find((group) => group.id === activeGroupId)
-
-    if (!activeGroup) {
+    if (!pointer) {
       return null
     }
 
-    const targetColumnGroups = current.groups
-      .filter((group) => group.column === targetColumn)
-      .sort((left, right) => left.order - right.order)
-    const targetColumnGroupsWithoutActive = targetColumnGroups.filter(
-      (group) => group.id !== activeGroupId,
-    )
-    const targetIndexWithActive = overGroupId
-      ? targetColumnGroups.findIndex((group) => group.id === overGroupId)
-      : targetColumnGroups.length
-    const safeTargetIndex = Math.max(
-      0,
-      Math.min(
-        targetIndexWithActive === -1
-          ? targetColumnGroupsWithoutActive.length
-          : targetIndexWithActive,
-        targetColumnGroupsWithoutActive.length,
-      ),
-    )
+    const columnElement = document
+      .elementsFromPoint(pointer.x, pointer.y)
+      .map((element) =>
+        element instanceof HTMLElement
+          ? element.closest<HTMLElement>('[data-group-column]')
+          : null,
+      )
+      .find((element): element is HTMLElement => Boolean(element))
 
-    if (
-      activeGroup.column === targetColumn &&
-      targetColumnGroups.findIndex((group) => group.id === activeGroupId) === safeTargetIndex
-    ) {
+    if (!columnElement) {
       return null
     }
 
-    targetColumnGroupsWithoutActive.splice(safeTargetIndex, 0, {
-      ...activeGroup,
-      column: targetColumn,
+    const rawColumn = Number(columnElement.dataset.groupColumn)
+
+    if (!isGroupColumn(rawColumn)) {
+      return null
+    }
+
+    const groupElements = Array.from(
+      columnElement.querySelectorAll<HTMLElement>('[data-group-id]'),
+    ).filter((element) => element.dataset.groupId !== activeGroupId)
+    const index = groupElements.findIndex((element) => {
+      const rect = element.getBoundingClientRect()
+
+      return pointer.y < rect.top + rect.height / 2
     })
 
-    const nextGroups =
-      activeGroup.column === targetColumn
-        ? [
-            ...current.groups.filter((group) => group.column !== targetColumn),
-            ...targetColumnGroupsWithoutActive,
-          ]
-        : [
-            ...current.groups.filter(
-              (group) => group.column !== activeGroup.column && group.column !== targetColumn,
-            ),
-            ...current.groups.filter(
-              (group) => group.column === activeGroup.column && group.id !== activeGroupId,
-            ),
-            ...targetColumnGroupsWithoutActive,
-          ]
-
     return {
-      ...current,
-      groups: normalizeGroupOrders(nextGroups),
-    }
+      column: rawColumn,
+      index: index === -1 ? groupElements.length : index,
+    } satisfies GroupPlacement
   }
 
-  function getGroupDropTarget(event: DragOverEvent | DragMoveEvent | DragEndEvent) {
-    const over = event.over
-    const overType = over?.data.current?.type
+  function updateGroupDraftFromPointer() {
+    const activeGroupId = activeGroupIdRef.current
 
-    if (!over || over.id === event.active.id) {
-      return null
-    }
-
-    if (overType === 'group') {
-      return {
-        id: String(over.id),
-        type: 'group',
-      } satisfies GroupDropTarget
-    }
-
-    if (overType === 'group-column') {
-      const overColumn = over.data.current?.column
-
-      if (!isGroupColumn(overColumn)) {
-        return null
-      }
-
-      return {
-        column: overColumn,
-        id: String(over.id),
-        type: 'group-column',
-      } satisfies GroupDropTarget
-    }
-
-    return null
-  }
-
-  function rememberGroupDropTarget(event: DragOverEvent | DragMoveEvent | DragEndEvent) {
-    const target = getGroupDropTarget(event)
-
-    if (target) {
-      groupDropTargetRef.current = target
-    }
-  }
-
-  function previewGroupReorder(event: DragOverEvent) {
-    const activeGroupId = String(event.active.id)
-    const target = getGroupDropTarget(event)
-
-    if (!target) {
+    if (!activeGroupId) {
       return
     }
 
-    groupDropTargetRef.current = target
+    const placement = getGroupPlacementFromPointer(activeGroupId)
 
-    setDashboardData((current) => {
-      if (!current) {
-        return current
+    if (!placement) {
+      return
+    }
+
+    setGroupLayout((currentLayout) => {
+      const nextLayout = moveGroupToPlacement(currentLayout, activeGroupId, placement)
+
+      if (layoutsEqual(currentLayout, nextLayout)) {
+        return currentLayout
       }
 
-      const activeGroup = current.groups.find((group) => group.id === activeGroupId)
-      const overGroup =
-        target.type === 'group'
-          ? current.groups.find((group) => group.id === target.id)
-          : null
-      const targetColumn = overGroup?.column ?? (target.type === 'group-column' ? target.column : null)
-
-      if (!activeGroup || targetColumn === null || activeGroup.column === targetColumn) {
-        return current
-      }
-
-      const nextData = moveGroupToColumnTarget(
-        current,
-        activeGroupId,
-        targetColumn,
-        overGroup?.id ?? null,
-      )
-
-      if (!nextData) {
-        return current
-      }
-
-      groupDragProjectionRef.current = nextData
-      latestDashboardDataRef.current = nextData
-      return nextData
+      groupLayoutRef.current = nextLayout
+      latestGroupLayoutForCollision = nextLayout
+      return nextLayout
     })
   }
 
   function previewBookmarkReorder(event: DragOverEvent | DragMoveEvent) {
-    const activeBookmarkId = String(event.active.id)
+    const activeBookmarkId = fromBookmarkDndId(String(event.active.id))
     const overType = event.over?.data.current?.type
 
     if (overType !== 'bookmark' && overType !== 'group') {
@@ -1815,10 +1979,22 @@ export function App() {
   }
 
   function handleDragCancel() {
+    if (activeGroupIdRef.current) {
+      if (beforeGroupDragLayoutRef.current) {
+        groupLayoutRef.current = beforeGroupDragLayoutRef.current
+        latestGroupLayoutForCollision = beforeGroupDragLayoutRef.current
+        setGroupLayout(beforeGroupDragLayoutRef.current)
+      }
+
+      activeGroupIdRef.current = null
+      beforeGroupDragLayoutRef.current = null
+      setDraggingGroupId(null)
+      dragStartDataRef.current = null
+      return
+    }
+
     setDraggingGroupId(null)
     setDraggingBookmarkId(null)
-    groupDragProjectionRef.current = null
-    groupDropTargetRef.current = null
 
     if (dragStartDataRef.current) {
       latestDashboardDataRef.current = dragStartDataRef.current
@@ -1836,129 +2012,41 @@ export function App() {
 
     if (dragType === 'bookmark') {
       await handleBookmarkDragEnd(event)
-      groupDragProjectionRef.current = null
-      groupDropTargetRef.current = null
       dragStartDataRef.current = null
       return
     }
 
     if (dragType !== 'group') {
-      groupDragProjectionRef.current = null
-      groupDropTargetRef.current = null
       dragStartDataRef.current = null
       return
     }
 
-    const activeGroupId = String(event.active.id)
     const currentData = latestDashboardDataRef.current
-    const activeGroup = currentData?.groups.find((group) => group.id === activeGroupId)
-    const originalGroup = dragStartDataRef.current?.groups.find((group) => group.id === activeGroupId)
-    const hasPreviewMovedAcrossColumns =
-      Boolean(activeGroup) &&
-      Boolean(originalGroup) &&
-      activeGroup?.column !== originalGroup?.column
-    const dropTarget = groupDropTargetRef.current ?? getGroupDropTarget(event)
 
-    if (!dropTarget) {
-      if (hasPreviewMovedAcrossColumns && currentData) {
-        latestDashboardDataRef.current = currentData
-        setDashboardData(currentData)
-        await saveDashboardData(currentData)
-      } else if (dragStartDataRef.current) {
-        latestDashboardDataRef.current = dragStartDataRef.current
-        setDashboardData(dragStartDataRef.current)
-      }
-
-      groupDragProjectionRef.current = null
-      groupDropTargetRef.current = null
+    if (!currentData || isFilteringBookmarks) {
+      activeGroupIdRef.current = null
+      beforeGroupDragLayoutRef.current = null
       dragStartDataRef.current = null
       return
     }
 
-    if (!currentData || !activeGroup) {
-      groupDragProjectionRef.current = null
-      groupDropTargetRef.current = null
-      dragStartDataRef.current = null
-      return
+    const nextData = {
+      ...currentData,
+      groups: layoutToGroups(currentData.groups, groupLayoutRef.current),
     }
 
-    if (dropTarget.type === 'group') {
-      const overGroupId = dropTarget.id
-      const overGroup = currentData.groups.find((group) => group.id === overGroupId)
-
-      if (overGroup) {
-        if (activeGroup.column === overGroup.column) {
-          const columnGroups = currentData.groups
-            .filter((group) => group.column === activeGroup.column)
-            .sort((left, right) => left.order - right.order)
-          const oldIndex = columnGroups.findIndex((group) => group.id === activeGroupId)
-          const newIndex = columnGroups.findIndex((group) => group.id === overGroupId)
-
-          if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-            const reorderedColumnGroups = arrayMove(columnGroups, oldIndex, newIndex)
-            const nextData = {
-              ...currentData,
-              groups: normalizeGroupOrders([
-                ...currentData.groups.filter((group) => group.column !== activeGroup.column),
-                ...reorderedColumnGroups,
-              ]),
-            }
-
-            latestDashboardDataRef.current = nextData
-            setDashboardData(nextData)
-            await saveDashboardData(nextData)
-            groupDragProjectionRef.current = null
-            groupDropTargetRef.current = null
-            dragStartDataRef.current = null
-            return
-          }
-        } else {
-          const nextData = moveGroupToColumnTarget(
-            currentData,
-            activeGroupId,
-            overGroup.column,
-            overGroup.id,
-          )
-
-          if (nextData) {
-            latestDashboardDataRef.current = nextData
-            setDashboardData(nextData)
-            await saveDashboardData(nextData)
-            groupDragProjectionRef.current = null
-            groupDropTargetRef.current = null
-            dragStartDataRef.current = null
-            return
-          }
-        }
-      }
-    }
-
-    if (dropTarget.type === 'group-column') {
-      if (activeGroup.column !== dropTarget.column) {
-        const nextData = moveGroupToColumnTarget(currentData, activeGroupId, dropTarget.column, null)
-
-        if (nextData) {
-          latestDashboardDataRef.current = nextData
-          setDashboardData(nextData)
-          await saveDashboardData(nextData)
-          groupDragProjectionRef.current = null
-          groupDropTargetRef.current = null
-          dragStartDataRef.current = null
-          return
-        }
-      }
-    }
-
-    await saveDashboardData(currentData)
-    groupDragProjectionRef.current = null
-    groupDropTargetRef.current = null
+    latestDashboardDataRef.current = nextData
+    setDashboardData(nextData)
+    await saveDashboardData(nextData)
+    activeGroupIdRef.current = null
+    beforeGroupDragLayoutRef.current = null
     dragStartDataRef.current = null
   }
 
   async function handleBookmarkDragEnd(event: DragEndEvent) {
     const over = event.over
     const currentData = latestDashboardDataRef.current
-    const activeBookmarkId = String(event.active.id)
+    const activeBookmarkId = fromBookmarkDndId(String(event.active.id))
     const previewBookmark = currentData?.bookmarks.find((bookmark) => bookmark.id === activeBookmarkId)
     const originalBookmark = dragStartDataRef.current?.bookmarks.find(
       (bookmark) => bookmark.id === activeBookmarkId,
@@ -2000,7 +2088,7 @@ export function App() {
     }
 
     if (overType === 'bookmark') {
-      const overBookmarkId = String(over.id)
+      const overBookmarkId = fromBookmarkDndId(String(over.id))
       const overBookmark = currentData.bookmarks.find((bookmark) => bookmark.id === overBookmarkId)
 
       if (overBookmark && activeBookmark.groupId === overBookmark.groupId) {
@@ -2074,6 +2162,7 @@ export function App() {
 
     return counts
   }, new Map<string, number>())
+  const groupsById = new Map(groups.map((group) => [group.id, group]))
   const isFilteringBookmarks = search.trim().length > 0 || selectedTags.length > 0
   const visibleGroupIds = isFilteringBookmarks
     ? bookmarks.reduce((groupIds, bookmark) => {
@@ -2084,14 +2173,17 @@ export function App() {
         return groupIds
       }, new Set<string>())
     : null
-  const visibleGroups = visibleGroupIds
-    ? groups.filter((group) => visibleGroupIds.has(group.id))
-    : groups
   const visibleGroupsByColumn = GROUP_COLUMNS.map((column) => ({
     column,
-    groups: visibleGroups
-      .filter((group) => group.column === column)
-      .sort((left, right) => left.order - right.order),
+    groups: groupLayout[column]
+      .map((groupId) => groupsById.get(groupId))
+      .filter((group): group is BookmarkGroup => {
+        if (!group) {
+          return false
+        }
+
+        return !visibleGroupIds || visibleGroupIds.has(group.id)
+      }),
   }))
   const allTags = Array.from(tagCounts.keys()).sort(
     (left, right) => (tagCounts.get(right) ?? 0) - (tagCounts.get(left) ?? 0) || left.localeCompare(right),
@@ -2099,9 +2191,15 @@ export function App() {
   const activeTagPickerBookmark = activeTagPickerBookmarkId
     ? bookmarks.find((bookmark) => bookmark.id === activeTagPickerBookmarkId)
     : null
+  const sidebarLayoutStyle = {
+    '--search-sidebar-width': `${searchSidebarWidth}px`,
+  } as CSSProperties
 
   return (
-    <div className="shell">
+    <div
+      className={`shell ${isResizingSearchSidebar ? 'is-resizing-search-sidebar' : ''}`}
+      style={sidebarLayoutStyle}
+    >
       <header className="hero">
         <div className="hero-lock-control">
           <button
@@ -2354,7 +2452,7 @@ export function App() {
         aria-controls="search-sidebar"
         aria-expanded={isSearchSidebarOpen}
         aria-label={isSearchSidebarOpen ? 'Hide search sidebar' : 'Show search sidebar'}
-        onClick={() => setIsSearchSidebarOpen((isOpen) => !isOpen)}
+        onClick={toggleSearchSidebar}
       >
         {isSearchSidebarOpen ? (
           <svg
@@ -2384,6 +2482,11 @@ export function App() {
         ) : (
           <DndContext
             collisionDetection={dashboardCollisionDetection}
+            measuring={{
+              droppable: {
+                strategy: MeasuringStrategy.Always,
+              },
+            }}
             onDragCancel={handleDragCancel}
             onDragEnd={(event) => {
               void handleDragEnd(event)
@@ -2410,6 +2513,7 @@ export function App() {
                     <GroupColumnDropZone
                       className={`grid-edit-column-section ${isCollapsed ? 'is-collapsed' : ''}`}
                       column={column}
+                      disabled={isCollapsed || isFilteringBookmarks}
                       key={column}
                     >
                       <button
@@ -2427,7 +2531,7 @@ export function App() {
 
                       {!isCollapsed ? (
                         <SortableContext
-                          items={columnGroups.map((group) => group.id)}
+                          items={columnGroups.map((group) => toGroupDndId(group.id))}
                           strategy={verticalListSortingStrategy}
                         >
                           <div className="grid-edit-column-groups">
@@ -2440,8 +2544,11 @@ export function App() {
                                 <SortableGridGroupSection
                                   group={group}
                                   groupBookmarks={groupBookmarks}
-                                  groupSortingDisabled={Boolean(draggingBookmarkId)}
+                                  groupSortingDisabled={
+                                    Boolean(draggingBookmarkId) || isFilteringBookmarks
+                                  }
                                   key={group.id}
+                                  suppressTransform={Boolean(draggingGroupId)}
                                   onCloseTagPicker={closeGridTagPicker}
                                   onDeleteBookmark={(bookmark) => {
                                     void handleGridBookmarkDelete(bookmark)
@@ -2466,9 +2573,14 @@ export function App() {
                 }
 
                 return (
-                  <GroupColumnDropZone className="group-column" column={column} key={column}>
+                  <GroupColumnDropZone
+                    className="group-column"
+                    column={column}
+                    disabled={isFilteringBookmarks}
+                    key={column}
+                  >
                     <SortableContext
-                      items={columnGroups.map((group) => group.id)}
+                      items={columnGroups.map((group) => toGroupDndId(group.id))}
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="group-column-stack">
@@ -2482,9 +2594,12 @@ export function App() {
                               group={group}
                               bookmarkSortingDisabled={Boolean(draggingGroupId)}
                               groupBookmarks={groupBookmarks}
-                              groupSortingDisabled={Boolean(draggingBookmarkId)}
+                              groupSortingDisabled={
+                                Boolean(draggingBookmarkId) || isFilteringBookmarks
+                              }
                               key={group.id}
                               locked={locked}
+                              suppressTransform={Boolean(draggingGroupId)}
                               onEditBookmark={openEditBookmark}
                               onEditGroup={openEditGroup}
                               onOpenGroupBookmarks={openGroupBookmarks}
@@ -2559,10 +2674,21 @@ export function App() {
       </div>
 
       <aside
-        className={`search-sidebar ${isSearchSidebarOpen ? 'is-open' : ''}`}
+        className={`search-sidebar ${isSearchSidebarOpen ? 'is-open' : ''} ${isResizingSearchSidebar ? 'is-resizing' : ''}`}
         id="search-sidebar"
         aria-hidden={!isSearchSidebarOpen}
       >
+        <button
+          className="search-sidebar-resize-handle"
+          type="button"
+          aria-label="Resize search sidebar"
+          tabIndex={isSearchSidebarOpen ? 0 : -1}
+          onPointerCancel={handleSearchSidebarResizeEnd}
+          onPointerDown={handleSearchSidebarResizeStart}
+          onPointerMove={handleSearchSidebarResizeMove}
+          onPointerUp={handleSearchSidebarResizeEnd}
+        />
+
         <div className="toolbar">
           <label className="search-field">
             <span>Search</span>

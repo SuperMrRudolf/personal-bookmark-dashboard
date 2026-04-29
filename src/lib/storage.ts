@@ -7,6 +7,9 @@ const LEGACY_UNGROUPED_GROUP_ID = 'group-ungrouped'
 const DEFAULT_TIMESTAMP = '2026-01-01T00:00:00.000Z'
 const DEFAULT_GROUP_COLUMN = 0
 const GROUP_COLUMN_COUNT = 4
+const DEFAULT_SEARCH_SIDEBAR_WIDTH = 300
+const MIN_SEARCH_SIDEBAR_WIDTH = 220
+const MAX_SEARCH_SIDEBAR_WIDTH = 520
 
 type CreateGroupInput = {
   name: string
@@ -61,6 +64,7 @@ export type DashboardBackupFile = {
 
 const defaultSettings: DashboardSettings = {
   locked: true,
+  searchSidebarWidth: DEFAULT_SEARCH_SIDEBAR_WIDTH,
 }
 
 let fallbackData: DashboardData | null = null
@@ -201,6 +205,13 @@ function normalizeSettings(value: unknown): DashboardSettings {
 
   return {
     locked: typeof value.locked === 'boolean' ? value.locked : defaultSettings.locked,
+    searchSidebarWidth:
+      typeof value.searchSidebarWidth === 'number' && Number.isFinite(value.searchSidebarWidth)
+        ? Math.max(
+            MIN_SEARCH_SIDEBAR_WIDTH,
+            Math.min(MAX_SEARCH_SIDEBAR_WIDTH, Math.round(value.searchSidebarWidth)),
+          )
+        : defaultSettings.searchSidebarWidth,
   }
 }
 
